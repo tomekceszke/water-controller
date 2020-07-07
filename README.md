@@ -18,7 +18,7 @@ It may depend either on fixed rules (e.g. flow speed/duration) or anomaly detect
 ## Hardware
 | ![hardware](doc/img/hardware.jpg) | 
 |:--:| 
-| *3/4" Valve with actuator and hall sensor as a flow meter* |
+| *3/4" valve with actuator and flow meter (hall sensor)* |
 
 | ![pcb](doc/img/pcb-front.jpg) |
 |:--:| 
@@ -27,13 +27,16 @@ It may depend either on fixed rules (e.g. flow speed/duration) or anomaly detect
 
 ## Software
 ### Tech stack
-- C, Python 
-- sdk: esp-idf - [official development framework for the ESP32 and ESP32-S Series SoCs](https://docs.espressif.com/projects/esp-idf/en/latest/esp32/)
-  - FreeRTOS
-  - mbedtls
+- languages: C, Python 
 - sdk: xtensa-esp32-elf
-- cmake, ninja
-- JWT
+- framework: [esp-idf](https://docs.espressif.com/projects/esp-idf/en/latest/esp32/) including
+  - [FreeRTOS](https://www.freertos.org/) - Real-time operating system for microcontrollers
+  - [mbed TLS](https://tls.mbed.org/)
+- tools: cmake, ninja, git
+- security: [JSON Web Tokens](http://jwt.io/)
+- communication: REST API
+- cloud solution: [Google Cloud Platform](https://cloud.google.com/): IoT Core, Pub/Sub, Dataflow, BigQuery
+- reporting: [Google Data Studio](https://datastudio.google.com/) 
 
 ### 3rd Party Components
 - udp-logging - https://github.com/MalteJ/embedded-esp32-component-udp_logging - Apache License v2.0
