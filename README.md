@@ -18,17 +18,22 @@ It may depend either on fixed rules (e.g. flow speed/duration) or anomaly detect
 ## Hardware
 | ![hardware](doc/img/hardware.jpg) | 
 |:--:| 
-| *Valve with actuator and hall sensor as a flow meter* |
+| *3/4" Valve with actuator and hall sensor as a flow meter* |
 
 | ![pcb](doc/img/pcb-front.jpg) |
 |:--:| 
-| *PCB* |
+| *ESP-WROOM-32 dev kit* |
 
 
 ## Software
-
-### Firmware
-- written in C under [esp-idf: official development framework for the ESP32 and ESP32-S Series SoCs](https://docs.espressif.com/projects/esp-idf/en/latest/esp32/).
+### Tech stack
+- C, Python 
+- sdk: esp-idf - [official development framework for the ESP32 and ESP32-S Series SoCs](https://docs.espressif.com/projects/esp-idf/en/latest/esp32/)
+  - FreeRTOS
+  - mbedtls
+- sdk: xtensa-esp32-elf
+- cmake, ninja
+- JWT
 
 ### 3rd Party Components
 - udp-logging - https://github.com/MalteJ/embedded-esp32-component-udp_logging - Apache License v2.0
