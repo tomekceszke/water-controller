@@ -26,13 +26,10 @@ It may depend either on fixed rules (e.g. flow speed/duration) or anomaly detect
 |:--:| 
 | *Valve with actuator and hall sensor as a flow meter* |
 
-![pcb-front](doc/img/pcb-front.jpg)
+| ![pcb](doc/img/pcb.jpg) |
+|:--:| 
+| *PCB* |
 
-*PCB's front...*
-
-![pcb-back](doc/img/pcb-back.jpg)
-
-*... and back*
 
 ## Software
 
@@ -48,26 +45,26 @@ It may depend either on fixed rules (e.g. flow speed/duration) or anomaly detect
 
 ## Testing
 
-![assembling](doc/img/assembling.jpg)
+| ![assembling](doc/img/assembling.jpg) |
+|:--:| 
+| *Testing PCB "on the desk"* |
 
-*Testing PCB "on the desk"*
+| ![monitoring](doc/img/monitoring.jpg) |
+|:--:| 
+| *Water is flowing* |
 
-![monitoring](doc/img/monitoring.jpg)
-
-*Water is flowing*
-
-![activated](doc/img/protected.jpg)
-
-*Protection activated*
+| ![activated](doc/img/protected.jpg) |
+|:--:| 
+| *Protection activated* |
 
 ## Collecting and analyzing data
-![big-query](doc/img/big-query.png)
+| ![big-query](doc/img/big-query.png) |
+|:--:| 
+| *Collected data on Google BigQuery database* |
 
-*Collected data on Google BigQuery database*
-
-![report1](doc/img/report1.png)
-
-*Sample report on Google Data Studio*
+| ![report1](doc/img/report1.png) |
+|:--:| 
+| *Sample report on Google Data Studio* |
 
 ## TODO
 * implement standalone, local algorithm for [anomaly detection using the multivariate gaussian distribution](https://www.coursera.org/lecture/machine-learning/anomaly-detection-using-the-multivariate-gaussian-distribution-DnNr9) - like in my other project https://github.com/tomekceszke/ml-login...
