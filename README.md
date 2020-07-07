@@ -5,10 +5,6 @@ It contains valve with actuator, hall sensor as a flow meter and ESP32 as a main
 Water flow is continuously measured and on *some conditions* ESP32 decides when to close the main valve.
 It may depend either on fixed rules (e.g. flow speed/duration) or anomaly detection algorithm. 
 
-
-![collage](doc/img/collage.jpg)
-
-
 ## Features
 - installed on main water connection it measures consumption amount and flow duration
 - telemetry (start time, water consumption amount, flow duration and speed) is on-the-fly sent to Google Cloud Platform for further processing and analysing
@@ -20,13 +16,11 @@ It may depend either on fixed rules (e.g. flow speed/duration) or anomaly detect
   - generate beautiful reports e.g. on Google Data Studio  
 
 ## Hardware
-
-
 | ![hardware](doc/img/hardware.jpg) | 
 |:--:| 
 | *Valve with actuator and hall sensor as a flow meter* |
 
-| ![pcb](doc/img/pcb.jpg) |
+| ![pcb](doc/img/pcb-front.jpg) |
 |:--:| 
 | *PCB* |
 
