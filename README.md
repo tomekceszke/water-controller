@@ -51,6 +51,10 @@ It may depend either on fixed rules (e.g. flow speed/duration) or anomaly detect
 |:--:| 
 | *Protection activated* |
 
+| ![log](doc/img/logs.png) |
+|:--:| 
+| *Device's logs* |
+
 ## Collecting and analyzing data
 | ![big-query](doc/img/big-query.png) |
 |:--:| 
