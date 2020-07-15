@@ -17,6 +17,8 @@ jwt_t createGCPJWT();
 
 void send_event(int, time_t, time_t);
 
+extern char boot_time[64];
+
 
 static bool auth(httpd_req_t *req) {
     char *auth_data;
@@ -141,6 +143,17 @@ static esp_err_t close_valve_handler(httpd_req_t *req) {
     return httpd_resp_send(req, "", strlen(""));
 }
 
+static esp_err_t get_status_handler(httpd_req_t *req) {
+    size_t free_bytes = xPortGetFreeHeapSize();
+    //int64_t uptime = esp_timer_get_time();
+    char data[100];
+    sprintf(data,
+            "{\"up_since\":\"%s\",\"free_kb\":\"%d\"}", boot_time, free_bytes/1024);
+
+    httpd_resp_set_type(req, "application/json");
+    return httpd_resp_send(req, data, strlen(data));
+}
+
 static esp_err_t trigger_test_event_to_gcp_handler(httpd_req_t *req) {
     send_event(1, time(NULL), time(NULL) + 1);
     return httpd_resp_send(req, "", strlen(""));
@@ -197,6 +210,12 @@ void start_web_server(int port) {
             .handler = trigger_test_event_to_gcp_handler,
             .user_ctx = NULL};
 
+    httpd_uri_t get_status_uri = {
+            .uri = "/status",
+            .method = HTTP_GET,
+            .handler = get_status_handler,
+            .user_ctx = NULL};
+
 
     ESP_LOGI(TAG, "Web server started on port: '%d'", http_config.server_port);
 
@@ -207,6 +226,7 @@ void start_web_server(int port) {
         // httpd_register_uri_handler(web_httpd, &jwt_uri);
         httpd_register_uri_handler(web_httpd, &close_valve_uri);
         httpd_register_uri_handler(web_httpd, &is_valve_closed_uri);
+        httpd_register_uri_handler(web_httpd, &get_status_uri);
 #ifdef TEST
         httpd_register_uri_handler(web_httpd, &trigger_test_event_to_gcp_uri);
 #endif

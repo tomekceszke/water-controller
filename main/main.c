@@ -22,6 +22,7 @@ _Noreturn void pcnt_task();
 
 void ntp_task();
 
+
 void initGPIO() {
     gpio_pad_select_gpio(FLOW_METER_IN_GPIO);
     gpio_set_direction(FLOW_METER_IN_GPIO, GPIO_MODE_INPUT);

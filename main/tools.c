@@ -4,6 +4,8 @@
 
 static const char *TAG = "TOOLS";
 
+char boot_time[64];
+
 void led(gpio_num_t pin, bool on) {
     gpio_set_level(pin, on);
 }
@@ -34,15 +36,15 @@ void ntp_task() {
         vTaskDelay(1000 * portTICK_RATE_MS);
         time(&now);
     }
-    char strftime_buf[64];
+
     struct tm timeinfo = { 0 };
 
     setenv("TZ", "CET-1CEST,M3.5.0,M10.5.0/3", 1);
     tzset();
 
     localtime_r(&now, &timeinfo);
-    strftime(strftime_buf, sizeof(strftime_buf), "%c", &timeinfo);
-    ESP_LOGI(TAG, "The current local date/time is: %s", strftime_buf);
+    strftime(boot_time, sizeof(boot_time), "%c", &timeinfo);
+    ESP_LOGI(TAG, "The current local date/time is: %s", boot_time);
 
     vTaskDelete(NULL);
 }

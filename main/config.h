@@ -14,7 +14,7 @@
 #define LED_BLUE_OUT_GPIO               GPIO_NUM_32
 #define LED_RED_OUT_GPIO                GPIO_NUM_33
 
-#define VALVE_CLOSING_TIME_SECONDS      8
+#define VALVE_CLOSING_TIME_SECONDS      10
 
 
 #define CUTOFF_SECONDS                  1800 // TODO

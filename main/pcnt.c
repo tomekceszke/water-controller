@@ -113,9 +113,9 @@ _Noreturn void pcnt_task() {
             led(LED_BLUE_OUT_GPIO, running);
             if (running) {
                 time(&start_time);
-                ESP_LOGW(TAG, "Water flow started!");
+                //ESP_LOGW(TAG, "Water flow started!");
             } else {
-                ESP_LOGW(TAG, "Water flow stopped!");
+                //ESP_LOGW(TAG, "Water flow stopped!");
                 time(&stop_time);
                 if(sum_delta > 1) {
                     send_event(sum_delta, start_time, stop_time);

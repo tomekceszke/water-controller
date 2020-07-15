@@ -22,10 +22,8 @@ void send_event(int consumption, time_t start_time, time_t stop_time) {
         time(&now);
 
         if (jwt.exp <= now) {
-            ESP_LOGI(TAG, "JWT token is expired (exp: %d vs now: %lu)", jwt.exp, now);
+            //ESP_LOGI(TAG, "JWT token is expired (exp: %d vs now: %lu)", jwt.exp, now);
             jwt = createGCPJWT();
-        } else {
-            ESP_LOGD(TAG, "Reused old JWT token that is valid to %d", jwt.exp);
         }
     }
 
@@ -49,7 +47,7 @@ void send_event(int consumption, time_t start_time, time_t stop_time) {
             "{\"start_time\":\"%lu\",\"stop_time\":\"%lu\",\"consumption\":\"%d\"}",
             start_time, stop_time, consumption);
 
-    ESP_LOGI(TAG, "Data: %s", data);
+    //ESP_LOGI(TAG, "Data: %s", data);
 
     char binary_data[200];
     base64url_encode((unsigned char *) data, strlen(data), binary_data);
