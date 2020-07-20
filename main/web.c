@@ -166,7 +166,7 @@ void start_web_server(int port) {
     http_config.ctrl_port = port;
     http_config.lru_purge_enable = true;
 
-    http_config.stack_size = 20480; // TODO!!!
+    http_config.stack_size = 32768; // TODO!!!
 
     httpd_uri_t main_uri = {
             .uri = "/",

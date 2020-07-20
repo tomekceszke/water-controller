@@ -33,5 +33,6 @@ typedef struct { // TODO move it out from here
 #define GCP_PUBLISH_EVENT_URL           "https://cloudiotdevice.googleapis.com/v1/projects/vps1-ceszke-com/locations/europe-west1/registries/vps1-iot/devices/water-controller:publishEvent"
 #define JWT_EXPIRY_SECONDS              600
 #define JWT_EXPIRY_GAP_SECONDS          30
-#define SEND_EVENT_THRESHOLD            10
+#define SEND_EVENT_THRESHOLD_PULSES     10
+#define SEND_EVENT_THRESHOLD_SECONDS    1
 

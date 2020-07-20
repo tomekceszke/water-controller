@@ -83,6 +83,7 @@ void ota_task() {
 //        } else {
 //            ESP_LOGE(TAG, "Please remove manually BIN file and then restart ESP!");
 //        }
+        ESP_LOGW(TAG, "Restarting...");
         esp_restart();
     } else {
         ESP_LOGE(TAG, "Firmware upgrade failed");

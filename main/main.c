@@ -63,7 +63,7 @@ void app_main(void) {
     xTaskCreate(&ntp_task, "ntp_task", 2048, NULL, 5, NULL);
 
     ESP_LOGI(TAG, "Starting counter...");
-    xTaskCreate(&pcnt_task, "pcnt_task", 16384, NULL, 5, NULL);
+    xTaskCreate(&pcnt_task, "pcnt_task", 32768, NULL, 5, NULL);
 
     ESP_LOGI(TAG, "All done!");
     ESP_LOGE(TAG, "(not error) Built: %s %s", __DATE__, __TIME__);
