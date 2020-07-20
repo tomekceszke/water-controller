@@ -46,7 +46,7 @@ It may depend either on fixed rules (e.g. flow speed/duration) or anomaly detect
 - base64 decoder - https://github.com/zhicheng/base64 - Public Domain
 - esp-idf examples - https://github.com/espressif/esp-idf/tree/master/examples - Apache License v2.0
 
-## Assembling
+## Developing
 
 | ![pcb](doc/img/pcb-front.jpg) |
 |:--:| 
@@ -54,7 +54,7 @@ It may depend either on fixed rules (e.g. flow speed/duration) or anomaly detect
 
 | ![assembling](doc/img/assembling.jpg) |
 |:--:| 
-| *Measuring and testing* |
+| *Measuring and testing Control Unit* |
 
 ## Testing
 
@@ -70,11 +70,12 @@ It may depend either on fixed rules (e.g. flow speed/duration) or anomaly detect
 |:--:| 
 | *Device's logs* |
 
-## Collecting and analyzing data
+## Collecting data
 | ![big-query](doc/img/big-query.png) |
 |:--:| 
 | *Collected data on Google BigQuery database* |
 
+## Reporting
 | ![report1](doc/img/report1.png) |
 |:--:| 
 | *Sample report on Google Data Studio* |
