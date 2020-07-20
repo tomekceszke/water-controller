@@ -117,7 +117,7 @@ _Noreturn void pcnt_task() {
             } else {
                 //ESP_LOGW(TAG, "Water flow stopped!");
                 time(&stop_time);
-                if(sum_delta > 1) {
+                if(sum_delta > SEND_EVENT_THRESHOLD) {
                     send_event(sum_delta, start_time, stop_time);
                 }
                 sum_delta = 0;

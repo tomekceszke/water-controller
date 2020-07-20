@@ -13,7 +13,7 @@ void close_valve(bool close);
 
 bool is_valve_closed();
 
-jwt_t createGCPJWT();
+jwt_t createGCPJWT(time_t now);
 
 void send_event(int, time_t, time_t);
 
@@ -155,7 +155,7 @@ static esp_err_t get_status_handler(httpd_req_t *req) {
 }
 
 static esp_err_t trigger_test_event_to_gcp_handler(httpd_req_t *req) {
-    send_event(1, time(NULL), time(NULL) + 1);
+    send_event(0, time(NULL), time(NULL) + 1);
     return httpd_resp_send(req, "", strlen(""));
 }
 
