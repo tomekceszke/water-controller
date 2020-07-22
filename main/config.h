@@ -36,3 +36,4 @@ typedef struct { // TODO move it out from here
 #define SEND_EVENT_THRESHOLD_PULSES     10
 #define SEND_EVENT_THRESHOLD_SECONDS    1
 
+#define NTP_MAX_ATTEMPTS                3

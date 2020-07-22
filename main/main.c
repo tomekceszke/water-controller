@@ -12,18 +12,18 @@ static const char *TAG = "MAIN";
 
 esp_err_t connect();
 
-void start_web_server(int port);
+void httpd(int port);
 
 esp_err_t init_nvs();
 
-void ota_task();
+void ota();
 
-_Noreturn void pcnt_task();
+_Noreturn void pcnt();
 
-void ntp_task();
+void ntp();
 
 
-void initGPIO() {
+void gpio() {
     gpio_pad_select_gpio(FLOW_METER_IN_GPIO);
     gpio_set_direction(FLOW_METER_IN_GPIO, GPIO_MODE_INPUT);
     gpio_pulldown_en(FLOW_METER_IN_GPIO);
@@ -51,20 +51,20 @@ void app_main(void) {
         return;
     }
     ESP_LOGW(TAG, "Checking OTA...");
-    ota_task();
+    ota();
     ESP_LOGI(TAG, "Init UDP logging...");
     udp_logging_init(CONFIG_LOG_UDP_IP, CONFIG_LOG_UDP_PORT, udp_logging_vprintf);
     ESP_LOGI(TAG, "Init GPIO...");
-    initGPIO();
+    gpio();
+    ESP_LOGI(TAG, "Free heap size: %d", xPortGetFreeHeapSize());
     ESP_LOGI(TAG, "Starting web server...");
-    start_web_server(PORT_WEB);
-
-    ESP_LOGI(TAG, "Getting time...");
-    xTaskCreate(&ntp_task, "ntp_task", 2048, NULL, 5, NULL);
-
+    httpd(PORT_WEB);
+    ESP_LOGI(TAG, "Free heap size: %d", xPortGetFreeHeapSize());
+    ESP_LOGI(TAG, "Setting time...");
+    ntp();
+    ESP_LOGI(TAG, "Free heap size: %d", xPortGetFreeHeapSize());
     ESP_LOGI(TAG, "Starting counter...");
-    xTaskCreate(&pcnt_task, "pcnt_task", 32768, NULL, 5, NULL);
-
-    ESP_LOGI(TAG, "All done!");
+    xTaskCreate(&pcnt, "pcnt", 16384, NULL, 5, NULL);
+    ESP_LOGI(TAG, "All done! Free heap size: %d", xPortGetFreeHeapSize());
     ESP_LOGE(TAG, "(not error) Built: %s %s", __DATE__, __TIME__);
 }

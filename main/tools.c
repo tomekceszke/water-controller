@@ -20,7 +20,8 @@ void close_valve(bool close) {
     gpio_set_level(VALVE_CTRL_OUT_GPIO, !close);
 }
 
-void ntp_task() {
+
+void ntp() {
     sntp_setoperatingmode(SNTP_OPMODE_POLL);
     sntp_setservername(0, "0.pl.pool.ntp.org");
     sntp_setservername(1, "1.pl.pool.ntp.org");
@@ -31,10 +32,15 @@ void ntp_task() {
     time(&now);
 
     u_short i = 0;
-    while (now < 5000) {
+    while (now < 5000 || i > NTP_MAX_ATTEMPTS) {
         ESP_LOGI(TAG, "Getting time, attempt: %d", ++i);
         vTaskDelay(1000 * portTICK_RATE_MS);
         time(&now);
+    }
+
+    if(now < 5000) {
+        ESP_LOGE(TAG, "Couldn't get current time by NTP. Some features won't work!");
+        return;
     }
 
     struct tm timeinfo = { 0 };
@@ -45,6 +51,12 @@ void ntp_task() {
     localtime_r(&now, &timeinfo);
     strftime(boot_time, sizeof(boot_time), "%c", &timeinfo);
     ESP_LOGI(TAG, "The current local date/time is: %s", boot_time);
+}
 
+void ntp_task() {
+    ntp();
     vTaskDelete(NULL);
 }
+
+
+

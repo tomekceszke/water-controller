@@ -34,7 +34,6 @@ void send_event(int consumption, time_t start_time, time_t stop_time) {
         return;
     }
 
-
     esp_http_client_config_t config = {
             .url = GCP_PUBLISH_EVENT_URL,
             .cert_pem = (char *) root_ca_cert_pem_start,
@@ -69,6 +68,7 @@ void send_event(int consumption, time_t start_time, time_t stop_time) {
     if (err != ESP_OK) {
         ESP_LOGE(TAG, "HTTP POST request failed: %s", esp_err_to_name(err));
     }
-
+    ESP_LOGI(TAG, "Before cleanup - Free heap size: %d", xPortGetFreeHeapSize());
     esp_http_client_cleanup(client);
+    ESP_LOGI(TAG, "After cleanup - Free heap size: %d", xPortGetFreeHeapSize());
 }

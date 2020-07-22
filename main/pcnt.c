@@ -1,3 +1,4 @@
+#include <limits.h>
 #include <stdint.h>
 #include <stdio.h>
 #include "freertos/FreeRTOS.h"
@@ -69,7 +70,7 @@ static void pcnt_init(void) {
     pcnt_counter_resume(PCNT_TEST_UNIT);
 }
 
-_Noreturn void pcnt_task() {
+_Noreturn void pcnt() {
 #ifdef TEST_HW
     ledc_init();
 #endif
@@ -86,7 +87,7 @@ _Noreturn void pcnt_task() {
 
     while (1) {
         // basic check
-        if(running) {
+        if (running) {
             long duration = time(NULL) - start_time;
             if (duration > CUTOFF_SECONDS) {
                 ESP_LOGE(TAG, "CUTOFF AFTER %lu seconds of flowing - FLOOD ALERT!", duration);
@@ -99,7 +100,7 @@ _Noreturn void pcnt_task() {
 
         if (pulse_counter != old_pulse_counter) {
             int16_t delta = abs(pulse_counter - old_pulse_counter);
-            // ESP_LOGI(TAG, "Delta %d", delta);
+            //ESP_LOGI(TAG, "Delta %d", delta);
             sum_delta += delta;
             old_pulse_counter = pulse_counter;
             flow_change = !running;
@@ -117,7 +118,13 @@ _Noreturn void pcnt_task() {
             } else {
                 //ESP_LOGW(TAG, "Water flow stopped!");
                 time(&stop_time);
-                if(sum_delta > SEND_EVENT_THRESHOLD_PULSES || (stop_time-start_time) > SEND_EVENT_THRESHOLD_SECONDS ) { //TODO: aggregate somehow those short pulses
+                time_t duration = stop_time - start_time;
+
+                ESP_LOGI(TAG, "Detected flow: consumption: %d, duration: %ld", sum_delta, duration);
+                ESP_LOGI(TAG, "Free heap size: %d", xPortGetFreeHeapSize());
+
+                if (sum_delta > SEND_EVENT_THRESHOLD_PULSES &&
+                    duration > SEND_EVENT_THRESHOLD_SECONDS) { //TODO: aggregate somehow those short pulses
                     send_event(sum_delta, start_time, stop_time);
                 }
                 sum_delta = 0;

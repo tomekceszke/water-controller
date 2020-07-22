@@ -7,7 +7,7 @@
 static const char *HEADER_AUTHORIZATION_KEY = "Authorization";
 static const char *TAG = "WEB";
 
-void ota_task();
+void ota();
 
 void close_valve(bool close);
 
@@ -81,7 +81,7 @@ static esp_err_t su_handler(httpd_req_t *req) {
     }
 
     const char resp[] = "Upgrade in progres...";
-    ota_task();
+    ota();
     //xTaskCreate(&ota_task, "ota_task", 8192, NULL, 5, NULL);
 
     return httpd_resp_send(req, resp, strlen(resp));
@@ -159,14 +159,14 @@ static esp_err_t trigger_test_event_to_gcp_handler(httpd_req_t *req) {
     return httpd_resp_send(req, "", strlen(""));
 }
 
-void start_web_server(int port) {
+void httpd(int port) {
     httpd_handle_t web_httpd = NULL;
     httpd_config_t http_config = HTTPD_DEFAULT_CONFIG();
     http_config.server_port = port;
     http_config.ctrl_port = port;
     http_config.lru_purge_enable = true;
 
-    http_config.stack_size = 32768; // TODO!!!
+    http_config.stack_size = 16384; // TODO!!!
 
     httpd_uri_t main_uri = {
             .uri = "/",

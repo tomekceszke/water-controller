@@ -59,8 +59,7 @@ esp_err_t remove_bin_file() {
     return err;
 }
 
-void ota_task() {
-    ESP_LOGI(TAG, "Starting OTA...");
+void ota() {
     ESP_ERROR_CHECK(init_nvs());
     //xTaskCreate(&ota_task, "boot_ota_task", 8192, (void *) 1, 5, NULL);
 
