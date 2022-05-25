@@ -1,6 +1,7 @@
-.idea
-certs
-gcp
+.DS_Store
+.idea/
+certs/*
 ml
-mobile/*
-ota-server
+/ml
+/mobile
+/ota-server
