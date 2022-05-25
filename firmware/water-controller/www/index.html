@@ -1,0 +1,155 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Water Controller</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.0-beta1/dist/css/bootstrap.min.css" rel="stylesheet"
+          integrity="sha384-giJF6kkoqNQ00vy+HMDP7azOuL0xtbfIcaT9wjKHr8RbDVddVHyTfAAsrekwKmP1" crossorigin="anonymous">
+    <script>
+        const API_HOST_URL = "http://192.168.11.244/";
+    </script>
+</head>
+<body>
+<div class="container-fluid">
+    <h1 class="display-2 text-center">Water Controller</h1>
+    <hr>
+    <div class="card border-light">
+        <div class="card-header">
+            Status
+        </div>
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table">
+                    <tbody>
+                    <tr>
+                        <th scope="row">Valve</th>
+                        <td class="table-success" style="width: 50%" id="valveStatusCell">open</td>
+                    </tr>
+                    <tr>
+                        <th scope="row">Water</th>
+                        <td id="waterStatusCell" style="width: 50%">not running</td>
+                    </tr>
+                    <tr>
+                        <th scope="row">Start time</th>
+                        <td id="startTimeCell" style="width: 50%"></td>
+                    </tr>
+                    <!--                <tr>-->
+                    <!--                    <th scope="row">Duration</th>-->
+                    <!--                    <td id="durationCell" style="width: 50%"></td>-->
+                    <!--                </tr>-->
+                    <!--                <tr>-->
+                    <!--                    <th scope="row">Consumption</th>-->
+                    <!--                    <td id="consumptionCell" style="width: 50%"></td>-->
+                    <!--                </tr>-->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    <div class="card border-light">
+        <div class="card-header">
+            Previously
+        </div>
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table">
+                    <tbody>
+                    <tr>
+                        <th scope="row">Start time</th>
+                        <td id="lastStartTimeCell" style="width: 50%"></td>
+                    </tr>
+                    <tr>
+                        <th scope="row">Stop time</th>
+                        <td id="lastStopTimeCell" style="width: 50%"></td>
+                    </tr>
+                    <tr>
+                        <th scope="row">Consumption</th>
+                        <td id="lastConsumptionCell" style="width: 50%"></td>
+                    </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <div class="card border-light">
+        <div class="card-header">
+            Valve
+        </div>
+        <div class="card-body">
+            <div class="btn-group btn-group-lg gap-2 d-flex" role="group" aria-label="Basic mixed styles example">
+                <button id="openValveBtn" type="button" class="btn btn-success">Open</button>
+                <button id="closeValveBtn" type="button" class="btn btn-danger">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.0.0-beta1/dist/js/bootstrap.bundle.min.js"
+        integrity="sha384-ygbV9kiqUc6oa4msXn9868pTtWMgiQaeYH7/t7LECLbyPA2x65Kgf80OJFdroafW"
+        crossorigin="anonymous"></script>
+<script>
+    function updateStatus() {
+        let waterStatusCell = document.getElementById('waterStatusCell');
+        let valveStatusCell = document.getElementById('valveStatusCell');
+        let startTimeCell = document.getElementById('startTimeCell');
+        let lastStartTimeCell = document.getElementById('lastStartTimeCell');
+        let lastStopTimeCell = document.getElementById('lastStopTimeCell');
+        let lastConsumptionCell = document.getElementById('lastConsumptionCell');
+        let openValveBtn = document.getElementById('openValveBtn');
+        let closeValveBtn = document.getElementById('closeValveBtn');
+
+        fetch(API_HOST_URL + 'api/status')
+            .then(response => response.json())
+            .then(data => {
+                    if (data.is_running) {
+                        waterStatusCell.className = 'table-warning'
+                        waterStatusCell.innerHTML = 'running';
+                        startTimeCell.innerHTML = new Date(data.start_time * 1000).toLocaleTimeString("pl-PL");
+                    } else {
+                        waterStatusCell.innerHTML = 'not running';
+                        waterStatusCell.className = ''
+                        lastStartTimeCell.innerHTML = new Date(data.start_time * 1000).toLocaleTimeString("pl-PL");
+                        lastStopTimeCell.innerHTML = new Date(data.stop_time * 1000).toLocaleTimeString("pl-PL");
+                        lastConsumptionCell.innerHTML = data.consumption;
+                        startTimeCell.innerHTML = '';
+                    }
+                    if (data.is_closed) {
+                        valveStatusCell.className = 'table-danger';
+                        valveStatusCell.innerHTML = 'closed';
+                        closeValveBtn.setAttribute("disabled", "");
+                        openValveBtn.removeAttribute("disabled");
+                    } else {
+                        valveStatusCell.className = 'table-success';
+                        valveStatusCell.innerHTML = 'open';
+                        openValveBtn.setAttribute("disabled", "");
+                        closeValveBtn.removeAttribute("disabled");
+                    }
+                }
+            );
+    }
+
+    function closeValve(close) {
+        fetch('http://192.168.11.244/close-valve', {
+            mode: "no-cors",
+            method: 'POST',
+            credentials: 'include',
+            body: close ? '1' : '0'
+        });
+        updateStatus();
+    }
+
+    let openValveBtn = document.getElementById('openValveBtn');
+    let closeValveBtn = document.getElementById('closeValveBtn');
+    openValveBtn.addEventListener('click', ev => closeValve(false));
+    closeValveBtn.addEventListener('click', ev => closeValve(true));
+
+    updateStatus();
+    setInterval(function () {
+        return updateStatus()
+    }, 5000);
+
+</script>
+</body>
+</html>
