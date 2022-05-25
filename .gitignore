@@ -1,7 +1,6 @@
 .DS_Store
-.idea/
+.idea
 certs/*
-ml
 /ml
 /mobile
 /ota-server
