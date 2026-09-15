@@ -6,7 +6,7 @@
 |---|---|
 | MCU | ESP32-WROOM-32 DevKit on a 7x9 cm prototype board |
 | Power | Screw terminal input, TO-220 regulator |
-| Flow meter | Termipol PM-3/4-B, DN20 brass, open-collector output, 5-18 VDC |
+| Flow meter | Termipol PM-3/4-B, DN20 brass, Hall sensor, NO open-collector output (10 mA), 5-18 VDC, 2-45 L/min, 477 pulses/L ±10 %; wires: black GND, red +, yellow signal ([datasheet](datasheet-flow-meter-pm3-4-b.pdf)) |
 | Valve | Motorised DN20 ball valve (blue actuator), single control line |
 | Connectors | 3-pin JST for the meter and the valve |
 | Indicators | Blue LED (flow), red LED (valve closed) |
