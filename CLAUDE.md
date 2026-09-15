@@ -19,7 +19,7 @@ The plan is in `~/.claude/plans/cele-odnosnie-tego-projektu-rosy-moler.md`. Stag
 - [x] 3 PWA
 - [x] 4 hc-data (deployed 2026-09-15, history imported; Grafana not done)
 - [~] 5 migration (rehearsed on the spare 2026-09-15, production pending)
-- [x] 6 docs/portfolio (README, LICENSE, CI host tests; firmware CI waits for home-idf to be public)
+- [x] 6 docs/portfolio (README, LICENSE, CI)
 - [ ] 7 anomaly model
 - [ ] 8 GCP shutdown
 
@@ -65,7 +65,8 @@ HOME_IDF_FROM_GIT=1 firmware/build.sh   # build against the pinned home-idf tag 
 cmake -S firmware/test -B build-test && cmake --build build-test && ctest --test-dir build-test   # host tests
 ```
 - `sdkconfig` is committed and generated from `sdkconfig.defaults`; never run `idf.py set-target`.
-- `home-idf` is a separate repo (`~/dev/home-idf`, private for now). A framework change needs a new tag and a bump in `main/idf_component.yml`.
+- `home-idf` is a separate public repo (`~/dev/home-idf`, github.com/tomekceszke/home-idf). A framework change needs a new tag and a bump in `main/idf_component.yml` (firmware and migrator).
+- CI (GitHub Actions): `tests.yml` (host tests + ingest validation) and `firmware.yml` (firmware + migrator build, placeholder secrets). There is no CD: releases go out through `tools/build_release.sh` + the OTA server.
 
 ### Setup
 
