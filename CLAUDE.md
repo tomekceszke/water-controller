@@ -184,6 +184,16 @@ tools/dev_proxy.py <device-ip> --port 8765   # serves firmware/web/*.html locall
 
 - [x] Production migration to 3.1.0 (2026-09-15).
 - [ ] Off-host backups of hc-data dumps (`/var/backups/water`, `/var/backups/heating` live only on the CT disk): choose a location.
-- [ ] Bucket calibration after the migration (`docs/CALIBRATION.md`).
+- [ ] **2026-09-16: valve shut-off test on production** (owner):
+  1. Close the valve in the app and wait at least 15 s (actuator travel < 10 s; check the indicator on top of the actuator).
+  2. Open a tap fully. After a short pressure drop no water may flow; the app must show "No water running".
+  3. If water keeps flowing, the "Water flowing with the valve closed" alert (app + urgent ntfy) must come after 15 s: the valve does not close or leaks.
+  4. Close the tap, open the valve in the app (hold), check that water flows again.
+  5. Afterwards read `flow_event` / `alert_event` for device `30aea40aba44` in hc-data: liters that passed while closed.
+  - 2026-09-15 test was inconclusive: closed 23:10:02, opened 23:10:11 (9 s, shorter than the travel), no water flowing.
+- [ ] **2026-09-16: calibration check** (owner):
+  - First production flow: Grohe Rapid SL full flush measured **7.59 L** (3620 pulses at 477/L, 57 s, 8.0 L/min).
+  - Check the cistern's full-flush setting (6 / 7.5 / 9 L?). With 7.5 L the factor 477 is right (~1 %). With 6 L it would be ~600, outside the ±10 % datasheet tolerance.
+  - Confirm with the bucket test (`docs/CALIBRATION.md`); change the factor in the app (Protection → Pulses per liter).
 - [ ] Stage 7 anomaly model; stage 8 GCP shutdown (not before 2026-09-29).
 - [ ] Sibling projects: CI everywhere (gate: none, heating: not on GitHub yet), move them to home-idf.
