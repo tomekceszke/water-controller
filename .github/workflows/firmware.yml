@@ -1,0 +1,44 @@
+name: firmware
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  build:
+    name: Firmware and migrator (ESP-IDF 5.4.2)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Placeholder secrets (never real ones in CI)
+        run: |
+          cp firmware/main/config/credentials-example.h firmware/main/config/credentials.h
+          printf -- '-----BEGIN CERTIFICATE-----\nCI placeholder\n-----END CERTIFICATE-----\n' > firmware/certs/ota_server_cert_15.pem
+      - name: Build
+        uses: espressif/esp-idf-ci-action@v1
+        with:
+          esp_idf_version: v5.4.2
+          target: esp32
+          path: .
+          command: |
+            set -e
+            (cd firmware && idf.py build)
+            mkdir -p migrator/blobs
+            cp firmware/build/bootloader/bootloader.bin firmware/build/partition_table/partition-table.bin migrator/blobs/
+            python3 - <<'PY'
+            import hashlib
+            def entry(name, macro):
+                data = open(f"migrator/blobs/{name}", "rb").read()
+                sha = ", ".join(f"0x{b:02x}" for b in hashlib.sha256(data).digest())
+                return f"#define {macro}_LEN {len(data)}\n#define {macro}_SHA256 {{ {sha} }}\n"
+            with open("migrator/blobs/blobs_manifest.h", "w") as f:
+                f.write("#pragma once\n" + entry("bootloader.bin", "BLOB_BOOTLOADER") + entry("partition-table.bin", "BLOB_PARTITION_TABLE"))
+            PY
+            (cd migrator && idf.py build)
+            test "$(stat -c%s migrator/build/water-migrator.bin)" -le 1048576
+      - uses: actions/upload-artifact@v4
+        with:
+          name: images
+          path: |
+            firmware/build/water-controller.bin
+            migrator/build/water-migrator.bin
