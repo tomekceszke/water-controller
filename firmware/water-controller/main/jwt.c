@@ -16,8 +16,8 @@
 #include "common.h"
 #include "config.h"
 
-extern const uint8_t private_pem_start[] asm("_binary_gcp_private_key_pem_start");
-extern const uint8_t private_pem_end[] asm("_binary_gcp_private_key_pem_end");
+extern const uint8_t private_pem_start[] asm("_binary_water_controller_1e47_pem_start");
+extern const uint8_t private_pem_end[] asm("_binary_water_controller_1e47_pem_end");
 
 static const char *TAG = "JWT";
 
@@ -31,7 +31,7 @@ static char *mbedtlsError(int errnum) {
     return buffer;
 }
 
-jwt_t createGCPJWT(time_t now) {
+char *createGCPJWT(time_t now, time_t exp, char *target_url) {
     char base64Header[100];
     const char header[] = "{\"alg\":\"RS256\",\"typ\":\"JWT\"}";
     base64url_encode(
@@ -39,24 +39,26 @@ jwt_t createGCPJWT(time_t now) {
             strlen(header),            // Length of data to encode.
             base64Header);             // Base64 encoded data.
 
-    uint32_t iat = now;              // Set the time now.
-    uint32_t exp = iat + JWT_EXPIRY_SECONDS;      // Set the expiry time.
 
-    jwt_t retJwt = {.exp = exp, .payload = ""};
+    char payload[500];
+    sprintf(payload, "{"
+                     "\"iat\":%lld,"
+                     "\"exp\":%lld,"
+                     "\"aud\":\"%s\","
+                     "\"target_audience\":\"%s\","
+                     "\"iss\":\"%s\","
+                     "\"sub\":\"%s\""
+                     "}", now, exp, JWT_GCP_TOKEN_URL, target_url, JWT_GCP_SERVICE_EMAIL, JWT_GCP_SERVICE_EMAIL);
 
-    char payload[100];
-    sprintf(payload, "{\"iat\":%d,\"exp\":%d,\"aud\":\"%s\"}", iat, exp, GCP_PROJECT_ID);
+//    ESP_LOGI(TAG, "JWT Raw Payload: %s, size: %d", payload, strlen(payload));
 
-    char base64Payload[100];
+    char base64Payload[1000];
     base64url_encode(
             (unsigned char *) payload,  // Data to encode.
             strlen(payload),           // Length of data to encode.
             base64Payload);            // Base64 encoded data.
-    uint8_t headerAndPayload[800];
+    uint8_t headerAndPayload[strlen(base64Header) + strlen(base64Payload)+2];
     sprintf((char *) headerAndPayload, "%s.%s", base64Header, base64Payload);
-
-    // At this point we have created the header and payload parts, converted both to base64 and concatenated them
-    // together as a single string.  Now we need to sign them using RSASSA
 
     mbedtls_pk_context pk_context;
     mbedtls_pk_init(&pk_context);
@@ -77,10 +79,11 @@ jwt_t createGCPJWT(time_t now) {
             (const unsigned char *) pers,
             strlen(pers));
 
-    int rc = mbedtls_pk_parse_key(&pk_context, private_pem_start, privateKeySize, NULL, 0, mbedtls_ctr_drbg_random, &ctr_drbg);
+    int rc = mbedtls_pk_parse_key(&pk_context, private_pem_start, privateKeySize, NULL, 0, mbedtls_ctr_drbg_random,
+                                  &ctr_drbg);
     if (rc != 0) {
         ESP_LOGE(TAG, "Failed to mbedtls_pk_parse_key: %d (-0x%x): %s\n", rc, -rc, mbedtlsError(rc));
-        return retJwt;
+        return NULL;
     }
 
     uint8_t oBuf[5000];
@@ -91,7 +94,7 @@ jwt_t createGCPJWT(time_t now) {
                     digest);
     if (rc != 0) {
         ESP_LOGE(TAG, "Failed to mbedtls_md: %d (-0x%x): %s\n", rc, -rc, mbedtlsError(rc));
-        return retJwt;
+        return NULL;
     }
     // ESP_LOGD(TAG, "3");
     size_t retSize;
@@ -99,21 +102,20 @@ jwt_t createGCPJWT(time_t now) {
                          mbedtls_ctr_drbg_random, &ctr_drbg);
     if (rc != 0) {
         ESP_LOGE(TAG, "Failed to mbedtls_pk_sign: %d (-0x%x): %s\n", rc, -rc, mbedtlsError(rc));
-        return retJwt;
+        return NULL;
     }
 
     // ESP_LOGD(TAG, "PK Sign size: %d", retSize);
-
-    char base64Signature[600];
+    static char base64Signature[600];
     base64url_encode((unsigned char *) oBuf, retSize, base64Signature);
 
-    // char* retData = (char*)malloc(strlen((char*)headerAndPayload) + 1 + strlen((char*)base64Signature) + 1);
-    sprintf(retJwt.payload, "%s.%s", headerAndPayload, base64Signature);
+    static char signed_payload[1601];
+    sprintf(signed_payload, "%s.%s", headerAndPayload, base64Signature);
+    // ESP_LOGI(TAG, "JWT Encoded Payload: %s, size: %d", signed_payload, strlen(signed_payload));
 
     mbedtls_pk_free(&pk_context);
-    // ESP_LOGI(TAG, "Generated new JWT token valid to %d", retJwt.exp);
 
-    return retJwt;
+    return signed_payload;
 }
 
 

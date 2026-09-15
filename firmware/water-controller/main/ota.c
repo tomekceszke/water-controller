@@ -1,22 +1,10 @@
 #include "config.h"
 #include "esp_https_ota.h"
-#include "nvs.h"
-#include "nvs_flash.h"
 #include <esp_log.h>
 
 static const char *TAG = "OTA";
 extern const uint8_t server_cert_pem_start[] asm("_binary_ota_server_cert_15_pem_start");
 extern const uint8_t server_cert_pem_end[] asm("_binary_ota_server_cert_15_pem_end");
-
-esp_err_t init_nvs() {
-    esp_err_t err = nvs_flash_init();
-    if (err == ESP_ERR_NVS_NO_FREE_PAGES || err == ESP_ERR_NVS_NEW_VERSION_FOUND) {
-        ESP_ERROR_CHECK(nvs_flash_erase());
-        err = nvs_flash_init();
-    }
-    return err;
-}
-
 
 //esp_err_t _http_event_handler(esp_http_client_event_t *evt) {
 //    switch (evt->event_id) {
@@ -63,7 +51,6 @@ esp_err_t remove_bin_file() {
 }
 
 void ota() {
-    ESP_ERROR_CHECK(init_nvs());
     //xTaskCreate(&ota_task, "boot_ota_task", 8192, (void *) 1, 5, NULL);
 
     esp_http_client_config_t http_config = {

@@ -9,6 +9,9 @@
     <script>
         const API_HOST_URL = "http://192.168.11.244/";
     </script>
+    <script>
+
+    </script>
 </head>
 <body>
 <div class="container-fluid">
@@ -16,14 +19,14 @@
     <hr>
     <div class="card border-light">
         <div class="card-header">
-            Status
+            Status <small>[<a href="#" onclick="return askPermission();">enable notifications</a>]</small>
         </div>
         <div class="card-body">
             <div class="table-responsive">
                 <table class="table">
                     <tbody>
                     <tr>
-                        <th scope="row">Valve</th>
+                        <th scope="row">Valve </th>
                         <td class="table-success" style="width: 50%" id="valveStatusCell">open</td>
                     </tr>
                     <tr>
@@ -82,8 +85,14 @@
                 <button id="openValveBtn" type="button" class="btn btn-success">Open</button>
                 <button id="closeValveBtn" type="button" class="btn btn-danger">Close</button>
             </div>
+            <p></p>
+            <div class="btn-group d-flex" role="group" >
+                <button id="pushBtn" type="button" class="btn btn-primary btn-lg btn-block">Push</button>
+            </div>
         </div>
     </div>
+
+
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.0.0-beta1/dist/js/bootstrap.bundle.min.js"
@@ -140,10 +149,74 @@
         updateStatus();
     }
 
+    function registerServiceWorker() {
+        return navigator.serviceWorker
+            .register('/service-worker.js')
+            .then(function (registration) {
+                console.log('Service worker successfully registered.');
+                return registration;
+            })
+            .catch(function (err) {
+                console.error('Unable to register service worker.', err);
+            });
+    }
+
+    function askPermission() {
+        return new Promise(function (resolve, reject) {
+            const permissionResult = Notification.requestPermission(function (result) {
+                resolve(result);
+            });
+
+            if (permissionResult) {
+                permissionResult
+                    .then(resolve, reject)
+                    .catch(function (err) {
+                        alert('Unable to ask for permission.', err);
+                    });
+            }
+        }).then(function (permissionResult) {
+            if (permissionResult === 'denied') {
+                alert("Already denied. You have to manually \"unblock\" this app's from browser settings.");
+            }
+        });
+    }
+
+    function subscribeUserToPush() {
+        return navigator.serviceWorker
+            .register('/service-worker.js')
+            .then(function (registration) {
+                const subscribeOptions = {
+                    userVisibleOnly: true,
+                    applicationServerKey: urlBase64ToUint8Array(
+                        'BEl62iUYgUivxIkv69yViEuiBIa-Ib9-SkvMeAtA3LFgDzkrxZJjSgSnfckjBJuBkr3qBUYIHBQFLXYp5Nksh8U',
+                    ),
+                };
+
+                return registration.pushManager.subscribe(subscribeOptions);
+            })
+            .then(function (pushSubscription) {
+                console.log(
+                    'Received PushSubscription: ',
+                    JSON.stringify(pushSubscription),
+                );
+                return pushSubscription;
+            });
+    }
+
+
+    registerServiceWorker();
+    //askPermission();
+
     let openValveBtn = document.getElementById('openValveBtn');
     let closeValveBtn = document.getElementById('closeValveBtn');
+    let pushBtn = document.getElementById('pushBtn');
     openValveBtn.addEventListener('click', ev => closeValve(false));
     closeValveBtn.addEventListener('click', ev => closeValve(true));
+pushBtn.addEventListener("click", () => {
+    Notification.requestPermission().then(perm => {
+        alert(perm)
+    })
+})
 
     updateStatus();
     setInterval(function () {

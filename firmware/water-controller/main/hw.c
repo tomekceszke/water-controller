@@ -4,7 +4,7 @@
 
 static const char *TAG = "HW";
 
-void send_state(enum State state);
+//void send_state(enum State state);
 
 void reset_gpio() {
     esp_rom_gpio_pad_select_gpio(FLOW_METER_IN_GPIO);
@@ -12,9 +12,11 @@ void reset_gpio() {
     gpio_pulldown_en(FLOW_METER_IN_GPIO);
 
     esp_rom_gpio_pad_select_gpio(VALVE_CTRL_OUT_GPIO);
+    gpio_reset_pin(VALVE_CTRL_OUT_GPIO);
     gpio_set_direction(VALVE_CTRL_OUT_GPIO, GPIO_MODE_INPUT_OUTPUT);
-    // gpio_pulldown_en(VALVE_CTRL_OUT_GPIO);
+    gpio_pullup_en(VALVE_CTRL_OUT_GPIO);
     gpio_set_level(VALVE_CTRL_OUT_GPIO, 1);
+    ESP_LOGI(TAG, "Valve is %s", gpio_get_level(VALVE_CTRL_OUT_GPIO) ? "open" : "closed");
 
     esp_rom_gpio_pad_select_gpio(LED_RED_OUT_GPIO);
     gpio_set_direction(LED_RED_OUT_GPIO, GPIO_MODE_INPUT_OUTPUT);
@@ -37,7 +39,8 @@ void close_valve(bool close) {
     ESP_LOGW(TAG, "Valve is %s", (close ? "closing" : "opening"));
     led(LED_RED_OUT_GPIO, close);
     gpio_set_level(VALVE_CTRL_OUT_GPIO, !close);
-    send_state(close ? CLOSING : OPENING);
+    // reset duration
+//    send_state(close ? CLOSING : OPENING);
 }
 
 

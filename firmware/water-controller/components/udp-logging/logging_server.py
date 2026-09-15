@@ -19,7 +19,7 @@ import socket
 import datetime
 
 UDP_IP = "0.0.0.0"
-UDP_PORT = 1337
+UDP_PORT = 1338
 
 sock = socket.socket( socket.AF_INET, socket.SOCK_DGRAM )
 sock.bind( (UDP_IP, UDP_PORT) )

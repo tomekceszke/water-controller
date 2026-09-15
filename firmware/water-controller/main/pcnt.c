@@ -3,16 +3,13 @@
 #include <stdio.h>
 #include "freertos/FreeRTOS.h"
 #include <freertos/task.h>
-#include <driver/ledc.h>
 #include <time.h>
-#include "driver/pcnt.h"
+#include "driver/pulse_cnt.h"
 #include "esp_attr.h"
 #include "esp_log.h"
 #include "config.h"
 #include "common.h"
 
-#define PCNT_TEST_UNIT      PCNT_UNIT_0
-#define LEDC_OUTPUT_IO      18 // Output GPIO of a sample 1 Hz pulse generator
 
 static const char *TAG = "COUNTER";
 
@@ -21,93 +18,80 @@ time_t last_start_time;
 time_t last_stop_time;
 int last_consumption;
 
+
 void led(gpio_num_t pin, bool on);
 
 void close_valve(bool close);
 
-void send_state(enum State state);
+//void send_state(enum State state);
 
-void send_event(int, time_t, time_t);
+void send_metrics(int consumption, time_t start_time, time_t stop_time);
 
-#ifdef TEST_HW
-static void ledc_init(void) {
-    // Prepare and then apply the LEDC PWM timer configuration
-    ledc_timer_config_t ledc_timer;
-    ledc_timer.speed_mode = LEDC_LOW_SPEED_MODE;
-    ledc_timer.timer_num = LEDC_TIMER_1;
-    ledc_timer.duty_resolution = LEDC_TIMER_10_BIT;
-    ledc_timer.freq_hz = 10;
-    ledc_timer.clk_cfg = LEDC_AUTO_CLK;
-    ledc_timer_config(&ledc_timer);
 
-    // Prepare and then apply the LEDC PWM channel configuration
-    ledc_channel_config_t ledc_channel;
-    ledc_channel.speed_mode = LEDC_LOW_SPEED_MODE;
-    ledc_channel.channel = LEDC_CHANNEL_1;
-    ledc_channel.timer_sel = LEDC_TIMER_1;
-    ledc_channel.intr_type = LEDC_INTR_DISABLE;
-    ledc_channel.gpio_num = LEDC_OUTPUT_IO;
-    ledc_channel.duty = 100; // set duty at about 10%
-    ledc_channel.hpoint = 0;
-    ledc_channel_config(&ledc_channel);
-}
-#endif
-
-static void pcnt_init(void) {
-    pcnt_config_t pcnt_config = {
-            .pulse_gpio_num = FLOW_METER_IN_GPIO,
-            .channel = PCNT_CHANNEL_0,
-            .unit = PCNT_TEST_UNIT,
-            .pos_mode = PCNT_COUNT_INC,
-            .neg_mode = PCNT_COUNT_DIS,
+static void pcnt_init(pcnt_unit_handle_t* pcnt_unit) {
+    ESP_LOGD(TAG, "Install PCNT unit");
+    pcnt_unit_config_t unit_config = {
+            .high_limit = INT16_MAX,
+            .low_limit = -1
     };
 
-    pcnt_unit_config(&pcnt_config);
+    ESP_ERROR_CHECK(pcnt_new_unit(&unit_config, pcnt_unit));
 
-    //set a filter value to ignore pulses for an amount of clock cycles
-    //ignore 10 clock cycles = 125ns. each cycle is 12.5ns based on 80Mhz APB clock.
-    //filter_val is a 10-bit value, so the maximum filter_val should be limited to 1023.
-    //the pulse duration should be longer than one APB_CLK cycle (12.5 ns)
-    pcnt_set_filter_value(PCNT_TEST_UNIT, 100);
-    pcnt_filter_enable(PCNT_TEST_UNIT);
-    //pcnt_filter_disable(PCNT_TEST_UNIT);
+    ESP_LOGD(TAG, "Set glitch filter");
+    pcnt_glitch_filter_config_t filter_config = {
+            .max_glitch_ns = PCNT_MAX_GLITCH_NS,
+    };
+    ESP_ERROR_CHECK(pcnt_unit_set_glitch_filter(*pcnt_unit, &filter_config));
 
-    pcnt_counter_pause(PCNT_TEST_UNIT);
-    pcnt_counter_clear(PCNT_TEST_UNIT);
+    ESP_LOGD(TAG, "Install PCNT channel");
+    pcnt_chan_config_t chan_config = {
+            .edge_gpio_num = FLOW_METER_IN_GPIO,
+            .level_gpio_num = -1,
+    };
+    pcnt_channel_handle_t pcnt_chan = NULL;
+    ESP_ERROR_CHECK(pcnt_new_channel(*pcnt_unit, &chan_config, &pcnt_chan));
 
-    pcnt_counter_resume(PCNT_TEST_UNIT);
+    ESP_LOGD(TAG, "Set edge and level actions for PCNT channel");
+    ESP_ERROR_CHECK(pcnt_channel_set_edge_action(pcnt_chan, PCNT_CHANNEL_EDGE_ACTION_INCREASE, PCNT_CHANNEL_EDGE_ACTION_HOLD));
+
+    ESP_LOGD(TAG, "Enable PCNT unit");
+    ESP_ERROR_CHECK(pcnt_unit_enable(*pcnt_unit));
+
+    ESP_LOGD(TAG, "Clear PCNT unit");
+    ESP_ERROR_CHECK(pcnt_unit_clear_count(*pcnt_unit));
+
+    ESP_LOGD(TAG, "Start PCNT unit");
+    ESP_ERROR_CHECK(pcnt_unit_start(*pcnt_unit));
+    ESP_LOGI(TAG, "PCNT unit started");
 }
 
 _Noreturn void pcnt() {
-#ifdef TEST_HW
-    ledc_init();
-#endif
-    pcnt_init();
-    int16_t pulse_counter = 0;
-    int16_t old_pulse_counter = 0;
-
+    pcnt_unit_handle_t pcnt_unit = NULL;
+    pcnt_init(&pcnt_unit);
+    int pulse_counter = 0;
+    int old_pulse_counter = 0;
     int sum_delta = 0;
+    // int aggregate_counter = 0;
     time_t start_time = 0;
     time_t stop_time = 0;
-
     bool flow_change = false;
 
     while (1) {
         // basic check
         if (running) {
-            long duration = time(NULL) - start_time;
+            time_t duration = time(NULL) - start_time;
             if (duration > CUTOFF_SECONDS) {
-                ESP_LOGE(TAG, "CUTOFF AFTER %lu seconds of flowing - FLOOD ALERT!", duration);
+                ESP_LOGE(TAG, "CUTOFF AFTER %lld seconds of flowing - FLOOD ALERT!", duration);
                 close_valve(true);
                 vTaskDelay((VALVE_CLOSING_TIME_SECONDS * 1000) / portTICK_PERIOD_MS);
             }
-        }
+        } // TODO: add counter overflow INT16_MAX case
 
-        pcnt_get_counter_value(PCNT_TEST_UNIT, &pulse_counter);
+        ESP_ERROR_CHECK(pcnt_unit_get_count(pcnt_unit, &pulse_counter));
 
         if (pulse_counter != old_pulse_counter) {
-            int16_t delta = abs(pulse_counter - old_pulse_counter);
-            //ESP_LOGI(TAG, "Delta %d", delta);
+            int delta = abs(pulse_counter - old_pulse_counter);
+            ESP_LOGD(TAG, "Delta %d", delta);
             sum_delta += delta;
             old_pulse_counter = pulse_counter;
             flow_change = !running;
@@ -122,29 +106,26 @@ _Noreturn void pcnt() {
             if (running) {
                 time(&start_time);
                 last_start_time = start_time;
-                send_state(START_RUNNING);
-                //ESP_LOGW(TAG, "Water flow started!");
+                //send_state(START_RUNNING);
+                //ESP_LOGI(TAG, "Water flow started!");
             } else {
-                //ESP_LOGW(TAG, "Water flow stopped!");
+                //ESP_LOGI(TAG, "Water flow stopped!");
                 time(&stop_time);
                 last_stop_time = stop_time;
                 time_t duration = stop_time - start_time;
                 last_consumption = sum_delta;
-                send_state(STOP_RUNNING);
 
-                ESP_LOGI(TAG, "Detected flow: consumption: %d, duration: %ld", sum_delta, duration);
-                ESP_LOGI(TAG, "Free heap size: %d", xPortGetFreeHeapSize());
+                ESP_LOGI(TAG, "Detected flow: consumption: %d, duration: %lld", sum_delta, duration);
+                //ESP_LOGI(TAG, "Free heap size: %lu", xPortGetFreeHeapSize());
 
-                if (sum_delta > SEND_EVENT_THRESHOLD_PULSES &&
-                    duration > SEND_EVENT_THRESHOLD_SECONDS) { //TODO: aggregate somehow those short pulses
-                    send_event(sum_delta, start_time, stop_time);
+                if (sum_delta > SEND_METRICS_THRESHOLD_PULSES && duration > SEND_METRICS_THRESHOLD_SECONDS) {
+                    send_metrics(sum_delta, start_time, stop_time);
                 }
                 sum_delta = 0;
                 start_time = 0;
                 stop_time = 0;
             }
         }
-
         vTaskDelay(1000 / portTICK_PERIOD_MS);
     }
 }

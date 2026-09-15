@@ -7,5 +7,5 @@ enum State {
 
 typedef struct {
     uint32_t exp;
-    char payload[1500];
-} jwt_t;
+    char *payload;
+} token_t;

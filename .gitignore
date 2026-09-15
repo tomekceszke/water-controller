@@ -1,6 +1,33 @@
+# OS / IDE
 .DS_Store
-.idea
+.idea/
+.fleet/
+.zed/
+.vscode/
+*.iml
+.cache/
+.claude/
+.worktrees/
+
+# Secrets (never commit)
 /certs/*
-/ml
-/mobile
-/ota-server
+credentials.h
+*.pem
+*.p12
+*.key
+*.private.env.json
+secrets.env
+upload.sh
+
+# Legacy cloud sources (kept locally until GCP shutdown)
+/gcp
+
+# Build output
+build/
+build-*/
+cmake-build-*/
+managed_components/
+compile_commands.json
+__pycache__/
+releases/
+legacy/
