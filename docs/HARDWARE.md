@@ -14,7 +14,7 @@
 
 | GPIO | Function | Notes |
 |---|---|---|
-| 4 | Flow meter pulses (PCNT, rising edge) | Firmware enables the internal pull-**down**; an OC output needs a pull-up |
+| 4 | Flow meter pulses (PCNT, rising edge) | The PCNT driver enables the internal pull-up (legacy code set a pull-down that the driver overrode) |
 | 14 | Valve control (HIGH = open) | MTMS strapping pin: outputs a signal during boot |
 | 32 | Blue LED | |
 | 33 | Red LED | |
@@ -39,8 +39,9 @@ Do these checks on the spare board.
    Measure how long the line is in the wrong state before firmware drives it.
 3. **Actuator reaction.** With the valve closed, apply the measured glitch to the actuator (or reset the spare wired to a
    spare valve). Does the ball move?
-4. **Meter input.** Measure the idle voltage on GPIO4 with the meter connected and no flow: is there an external pull-up,
-   and does the internal pull-down fight it?
+4. **Meter input.** Measure the idle voltage on GPIO4 with the meter connected and no flow. Check whether an external
+   pull-up exists; the internal one (~45 kΩ) is weak for a 30 cm+ cable near a motor. Run the pulse diagnostics
+   (`POST /api/diag`) with the valve actuator moving to see noise.
 
 ## Possible outcomes
 

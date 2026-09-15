@@ -1,0 +1,16 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Water</title></head>
+<body>
+<pre id="s"></pre>
+<button id="close">Close valve</button> <button id="open">Open valve</button> <button id="l">Log out</button>
+<script>
+let csrf = '';
+const api = (path, body) => fetch(path, body === undefined ? {cache: 'no-store'} : {method: 'POST', cache: 'no-store',
+  headers: {'Content-Type': 'application/json', 'X-CSRF-Token': csrf}, body: JSON.stringify(body)});
+const refresh = async () => { document.getElementById('s').textContent = JSON.stringify(await (await api('/api/status')).json(), null, 2); };
+(async () => { csrf = (await (await api('/api/session')).json()).csrf; refresh(); setInterval(refresh, 2000); })();
+document.getElementById('close').onclick = () => api('/api/valve', {state: 'closed'}).then(refresh);
+document.getElementById('open').onclick = () => confirm('Open the water valve?') && api('/api/valve', {state: 'open'}).then(refresh);
+document.getElementById('l').onclick = async () => { await api('/api/logout', {}); location.reload(); };
+</script>
+</body></html>

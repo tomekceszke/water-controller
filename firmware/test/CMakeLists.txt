@@ -1,0 +1,11 @@
+# Host unit tests for the pure protection logic: cmake -S firmware/test -B build-test && cmake --build build-test && ctest --test-dir build-test
+cmake_minimum_required(VERSION 3.16)
+project(water_controller_tests C)
+set(CMAKE_C_STANDARD 11)
+add_compile_options(-Wall -Wextra -Werror)
+include_directories(${CMAKE_CURRENT_LIST_DIR}/../main)
+enable_testing()
+foreach(name tier1 rules)
+    add_executable(test_${name} test_${name}.c ${CMAKE_CURRENT_LIST_DIR}/../main/${name}.c)
+    add_test(NAME ${name} COMMAND test_${name})
+endforeach()

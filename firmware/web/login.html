@@ -1,0 +1,14 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Login</title></head>
+<body>
+<form id="f"><input id="p" type="password" autocomplete="current-password" required> <button>Log in</button></form>
+<p id="m"></p>
+<script>
+document.getElementById('f').onsubmit = async e => {
+  e.preventDefault();
+  const r = await fetch('/api/login', {method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({password: document.getElementById('p').value})});
+  if (r.ok) location.reload(); else document.getElementById('m').textContent = (await r.json()).error;
+};
+</script>
+</body></html>

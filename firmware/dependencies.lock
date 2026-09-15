@@ -1,0 +1,23 @@
+dependencies:
+  home-idf:
+    component_hash: 4e8632d5420ae00dac3a398c552c991a90b9040f6885221cf996b8c90f55cffa
+    dependencies:
+    - name: idf
+      version: '>=5.4'
+    source:
+      git: https://github.com/tomekceszke/home-idf.git
+      path: .
+      type: git
+    targets:
+    - esp32
+    version: 47e08d4e5b2110a46795e5a0785648a95c1c8d9d
+  idf:
+    source:
+      type: idf
+    version: 5.4.2
+direct_dependencies:
+- home-idf
+- idf
+manifest_hash: bd5076a1e24df2b2b5e8e2283b05059c37be325eca18f844c74afe226f2270f5
+target: esp32
+version: 2.0.0

@@ -31,3 +31,6 @@ compile_commands.json
 __pycache__/
 releases/
 legacy/
+
+# ESP-IDF
+sdkconfig.old

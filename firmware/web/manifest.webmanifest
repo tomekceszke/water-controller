@@ -1,0 +1,10 @@
+{
+  "name": "Water controller",
+  "short_name": "Water",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#0b1d2a",
+  "theme_color": "#0b1d2a",
+  "icons": [{"src": "/apple-touch-icon.png", "sizes": "180x180", "type": "image/png"}]
+}

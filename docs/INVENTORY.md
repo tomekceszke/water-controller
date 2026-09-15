@@ -65,7 +65,7 @@ Severity: **C** = protection can fail or be defeated, **H** = wrong data or secu
 | 9 | H | `web.c:close_valve_handler()` | VLA `char buf[length]` sized from `Content-Length`, `sscanf` on a non-terminated buffer | Stack overflow / garbage read from a crafted request (authenticated) |
 | 10 | H | `web.c` | Static `Authorization` header compared with `strcmp`, sent by the UI on every call; HTTP only | Credential replay, timing leak; no session, no CSRF protection |
 | 11 | M | `web.c:su_handler()` | OTA runs inside the HTTP handler (16 KB httpd stack) | Server blocked for the whole download |
-| 12 | M | `hw.c` | `gpio_pulldown_en` on the open-collector meter input | Needs an external pull-up; verify on the board |
+| 12 | M | `hw.c` | `gpio_pulldown_en` on the meter input is dead code: `pcnt_new_channel()` later enables the internal pull-up and disables the pull-down | Misleading; the meter actually runs on the internal pull-up (~45 kΩ); check whether an external pull-up exists |
 | 13 | M | `hw.c` | Valve on GPIO14 (MTMS strapping pin, toggles during boot) | Actuator may twitch during reset; see `docs/HARDWARE.md` |
 | 14 | M | `gcp.c`, `jwt.c` | `cJSON` root never freed; mbedtls contexts leaked on error paths; shared static buffers; `sprintf` | Slow heap loss (token refresh every hour) |
 | 15 | M | `config.h` | `#define TEST` enabled in production | `/test-send-metrics` compiled in |
