@@ -9,6 +9,7 @@
 #include "hi_notify.h"
 #include "hi_ntp.h"
 #include "hi_ota.h"
+#include "hi_secret.h"
 #include "hi_system.h"
 #include "hi_wifi.h"
 
@@ -26,6 +27,23 @@
 static const char *TAG = "MAIN";
 
 extern const char ota_cert_pem_start[] asm("_binary_ota_server_cert_15_pem_start");
+
+/* credentials.h values may be obfuscated ("obf1:...", home-idf tools/obfuscate.py) */
+static char s_wifi_pass[65];
+static char s_admin_header[128];
+static char s_ntfy_topic[65];
+static char s_ntfy_error_topic[65];
+static char s_mqtt_pass[65];
+
+static void reveal_credentials(void)
+{
+    bool ok = hi_secret_reveal(WIFI_PASS, s_wifi_pass, sizeof(s_wifi_pass))
+              & hi_secret_reveal(HEADER_AUTHORIZATION_VALUE, s_admin_header, sizeof(s_admin_header))
+              & hi_secret_reveal(NTFY_TOPIC, s_ntfy_topic, sizeof(s_ntfy_topic))
+              & hi_secret_reveal(NTFY_ERROR_TOPIC, s_ntfy_error_topic, sizeof(s_ntfy_error_topic))
+              & hi_secret_reveal(MQTT_PASS, s_mqtt_pass, sizeof(s_mqtt_pass));
+    if (!ok) ESP_LOGE(TAG, "A credential in credentials.h is malformed");
+}
 
 static bool healthy(void)
 {
@@ -63,22 +81,23 @@ void app_main(void)
     if (nvs_erased) ESP_LOGE(TAG, "NVS was erased: valve state and settings reset to defaults");
 
     protect_start();            // Tier 2
-    hi_wifi_start(&(hi_wifi_config_t) {.ssid = WIFI_SSID, .password = WIFI_PASS, .hostname = DEVICE_HOSTNAME});
+    reveal_credentials();
+    hi_wifi_start(&(hi_wifi_config_t) {.ssid = WIFI_SSID, .password = s_wifi_pass, .hostname = DEVICE_HOSTNAME});
     hi_notify_init(&(hi_notify_config_t) {
-        .topic = NTFY_TOPIC,
-        .error_topic = NTFY_ERROR_TOPIC,
+        .topic = s_ntfy_topic,
+        .error_topic = s_ntfy_error_topic,
         .error_title = "Water controller error",
         .click_url = APP_URL,
         .error_cooldown_s = NOTIFY_ERROR_COOLDOWN_S,
     });
     hi_ntp_start(&(hi_ntp_config_t) {.servers = {"0.pl.pool.ntp.org", "1.pl.pool.ntp.org", "pool.ntp.org"}});
     hi_ota_init(&(hi_ota_config_t) {.url = OTA_URL, .cert_pem = ota_cert_pem_start, .delete_after = true});
-    telemetry_start();
+    telemetry_start(s_mqtt_pass);
     hi_auth_init(&(hi_auth_config_t) {
         .password_iterations = AUTH_PASSWORD_ITERATIONS,
         .password_salt_hex = AUTH_PASSWORD_SALT_HEX,
         .password_hash_hex = AUTH_PASSWORD_HASH_HEX,
-        .admin_header_value = HEADER_AUTHORIZATION_VALUE,
+        .admin_header_value = s_admin_header,
     });
     api_start();
     testhw_start();

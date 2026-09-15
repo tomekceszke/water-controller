@@ -38,7 +38,7 @@ button { font: inherit; color: inherit; }
 [hidden] { display: none !important; }
 
 /* Hero: the pipe */
-.pipe { display: block; width: 100%; height: auto; margin: 26px 0 8px; overflow: visible; }
+.pipe { display: block; width: 100%; height: auto; margin: 20px 0 8px; overflow: visible; }
 .pipe .wall { fill: var(--pipe); stroke: var(--seam); stroke-width: 2; }
 .pipe .up, .pipe .down { fill: var(--water); opacity: .28; transition: opacity .6s; }
 .pipe .stream { stroke: var(--water); stroke-width: 3; stroke-linecap: round; stroke-dasharray: 2 16; opacity: 0; }
@@ -46,22 +46,17 @@ button { font: inherit; color: inherit; }
 .closed .pipe .down { opacity: 0; }
 .closed .pipe .stream.after { opacity: 0; }
 .pipe .body { fill: #1b3542; stroke: var(--seam); stroke-width: 2; }
-.pipe .ball { fill: #0c1a22; }
-.pipe .rotor, .pipe .handle { transition: transform .7s cubic-bezier(.3,.7,.2,1); transform-box: view-box; }
-.pipe .rotor { transform-origin: 180px 94px; }
-.pipe .handle { transform-origin: 180px 30px; }
-.closed .pipe .rotor { transform: rotate(90deg); }
-.closed .pipe .handle { transform: rotate(-90deg); }
-.pipe .bore { fill: var(--water); opacity: .7; }
-.closed .pipe .bore { fill: var(--brass); opacity: .95; }
-.pipe .stem { stroke: var(--seam); stroke-width: 8; }
-.pipe .lever { stroke: var(--silt); stroke-width: 12; stroke-linecap: round; }
-.pipe .hub { fill: var(--seam); }
-.closed .pipe .lever { stroke: var(--brass); }
+/* Top view, like a real ball valve: handle along the pipe = open, across the pipe = closed */
+.pipe .handle { transition: transform .7s cubic-bezier(.3,.7,.2,1); transform-box: view-box; transform-origin: 180px 75px; }
+.closed .pipe .handle { transform: rotate(90deg); }
+.pipe .lever { fill: var(--silt); }
+.closed .pipe .lever { fill: var(--brass); }
+.pipe .hub { fill: var(--deep); }
+.closed .pipe .body { stroke: var(--brass); }
 @keyframes run { to { stroke-dashoffset: -36; } }
 @media (prefers-reduced-motion: reduce) {
   .flowing .pipe .stream { animation: none; }
-  .pipe .rotor, .pipe .handle { transition: none; }
+  .pipe .handle { transition: none; }
 }
 
 /* Cutoff countdown */
@@ -159,19 +154,17 @@ nav button[aria-current=page] { color: var(--water); }
     <p class="sub" id="subline"></p>
     <div id="banner" class="banner" role="status" hidden></div>
 
-    <svg class="pipe" viewBox="0 -24 360 174" aria-hidden="true">
-      <rect class="wall" x="1" y="72" width="358" height="44" rx="8"/>
-      <rect class="up" x="4" y="75" width="138" height="38" rx="5"/>
-      <rect class="down" x="218" y="75" width="138" height="38" rx="5"/>
-      <line class="stream" x1="14" y1="94" x2="136" y2="94"/>
-      <line class="stream after" x1="226" y1="94" x2="346" y2="94"/>
-      <rect class="body" x="138" y="58" width="84" height="72" rx="14"/>
-      <g class="rotor">
-        <circle class="ball" cx="180" cy="94" r="26"/>
-        <rect class="bore" x="154" y="85" width="52" height="18" rx="4"/>
+    <svg class="pipe" viewBox="0 0 360 150" aria-hidden="true">
+      <rect class="wall" x="1" y="55" width="358" height="40" rx="8"/>
+      <rect class="up" x="4" y="58" width="136" height="34" rx="5"/>
+      <rect class="down" x="220" y="58" width="136" height="34" rx="5"/>
+      <line class="stream" x1="14" y1="75" x2="134" y2="75"/>
+      <line class="stream after" x1="226" y1="75" x2="346" y2="75"/>
+      <circle class="body" cx="180" cy="75" r="40"/>
+      <g class="handle">
+        <rect class="lever" x="118" y="66" width="124" height="18" rx="9"/>
+        <circle class="hub" cx="180" cy="75" r="7"/>
       </g>
-      <line class="stem" x1="180" y1="58" x2="180" y2="36"/>
-      <g class="handle"><line class="lever" x1="180" y1="30" x2="232" y2="30"/><circle class="hub" cx="180" cy="30" r="9"/></g>
     </svg>
 
     <div class="cutoff" id="cutoff" hidden>
@@ -361,8 +354,7 @@ function renderNow(s) {
   $("shutBtn").hidden = closed;
   $("openBtn").hidden = !closed;
   const snooze = s.tier2.snooze_left_s;
-  $("actionHint").textContent = closed ? "Hold the button until it fills. Make sure no tap is left open."
-    : snooze ? `Smart rules paused for ${fmtDur(snooze)}` : "";
+  $("actionHint").textContent = !closed && snooze ? `Smart rules paused for ${fmtDur(snooze)}` : "";
 
   if (!s.flow.tier1_alive) banner("Flow monitoring is not responding. The controller will restart itself.");
   else if (s.system.pending_verify) banner("New firmware is being checked. It rolls back on its own if something is wrong.", true);

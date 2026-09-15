@@ -72,6 +72,8 @@ cmake -S firmware/test -B build-test && cmake --build build-test && ctest --test
 
 1. `cp firmware/main/config/credentials-example.h firmware/main/config/credentials.h`, then fill in WiFi, the admin
    header, the web password (`home-idf/tools/hash_password.py`), ntfy topics and the MQTT password.
+   - Secrets are stored obfuscated (`home-idf/tools/obfuscate.py` → `"obf1:..."`, `--reveal` to read back); that is
+     not encryption. Scripts that need a value (e.g. the admin header for `tools/hw_test.py`) reveal it the same way.
 2. `firmware/certs/ota_server_cert_15.pem` (gitignored): trust anchor of the OTA server on 192.168.11.15.
 
 ### Layout

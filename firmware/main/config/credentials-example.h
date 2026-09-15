@@ -1,6 +1,8 @@
 #pragma once
 
-/* Copy to credentials.h (never committed) and fill in. */
+/* Copy to credentials.h (never committed) and fill in.
+ * Secrets may be obfuscated so they are not readable at a glance (NOT encryption):
+ * python3 <home-idf>/tools/obfuscate.py  ->  "obf1:..."  (plain values work too) */
 
 #define WIFI_SSID                   ""
 #define WIFI_PASS                   ""
@@ -17,6 +19,5 @@
 #define NTFY_TOPIC                  ""
 #define NTFY_ERROR_TOPIC            ""
 
-/* hc-data Mosquitto user (write water/+/..., see server/). Empty password disables telemetry. */
-#define MQTT_USER                   "water-controller"
+/* hc-data Mosquitto password for user "water-controller" (see server/). Empty disables telemetry. */
 #define MQTT_PASS                   ""

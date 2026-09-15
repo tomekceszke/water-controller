@@ -10,7 +10,6 @@
 #include "hi_ntp.h"
 
 #include "config/config.h"
-#include "config/credentials.h"
 #include "rules.h"
 #include "settings.h"
 #include "telemetry.h"
@@ -145,9 +144,9 @@ static void on_mqtt_event(void *arg, esp_event_base_t base, int32_t event_id, vo
     }
 }
 
-void telemetry_start(void)
+void telemetry_start(const char *mqtt_pass)
 {
-    if (MQTT_PASS[0] == '\0') {
+    if (mqtt_pass == NULL || mqtt_pass[0] == '\0') {
         ESP_LOGW(TAG, "No MQTT password: telemetry disabled");
         return;
     }
@@ -161,9 +160,9 @@ void telemetry_start(void)
     const esp_mqtt_client_config_t config = {
         .broker.address.uri = MQTT_BROKER_URI,
         .credentials = {
-            .username = MQTT_USER,
+            .username = TELEMETRY_MQTT_USER,
             .client_id = s_client_id,
-            .authentication.password = MQTT_PASS,
+            .authentication.password = mqtt_pass,
         },
         .session.last_will = {.topic = s_status_topic, .msg = "offline", .qos = 1, .retain = 1},
         .outbox.limit = MQTT_OUTBOX_LIMIT_BYTES,

@@ -18,6 +18,6 @@ dependencies:
 direct_dependencies:
 - home-idf
 - idf
-manifest_hash: 51b65ed960c563cb83f563c028b32b88d10218e0308dce50fc5fdbdd625e6293
+manifest_hash: b73b5473ed395fdfe8cf9d5621f1074978aae71ecad6ea18597b50f59f5b8a29
 target: esp32
 version: 2.0.0

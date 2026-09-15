@@ -4,6 +4,7 @@
 #include "hi_log.h"
 #include "hi_migrator.h"
 #include "hi_ota.h"
+#include "hi_secret.h"
 #include "hi_system.h"
 #include "hi_wifi.h"
 
@@ -31,9 +32,14 @@ void app_main(void)
     gpio_set_direction(GPIO_LED_CLOSED, GPIO_MODE_OUTPUT);
     gpio_set_level(GPIO_LED_CLOSED, 1);
 
+    static char wifi_pass[65];
+    static char admin_header[128];
+    hi_secret_reveal(WIFI_PASS, wifi_pass, sizeof(wifi_pass));
+    hi_secret_reveal(HEADER_AUTHORIZATION_VALUE, admin_header, sizeof(admin_header));
+
     hi_nvs_init(NULL);
     hi_log_init(&(hi_log_config_t) {.udp_ip = LOG_UDP_IP, .udp_port = LOG_UDP_PORT});
-    hi_wifi_start(&(hi_wifi_config_t) {.ssid = WIFI_SSID, .password = WIFI_PASS, .hostname = DEVICE_HOSTNAME});
+    hi_wifi_start(&(hi_wifi_config_t) {.ssid = WIFI_SSID, .password = wifi_pass, .hostname = DEVICE_HOSTNAME});
     hi_ota_init(&(hi_ota_config_t) {.url = OTA_URL, .cert_pem = ota_cert_pem_start, .delete_after = true});
     hi_wifi_wait_connected(60000);
 
@@ -46,6 +52,6 @@ void app_main(void)
         .partition_table_len = pt_end - pt_start,
         .partition_table_sha256 = PT_SHA256,
         .ota1_offset = 0x210000,
-        .admin_header_value = HEADER_AUTHORIZATION_VALUE,
+        .admin_header_value = admin_header,
     });
 }

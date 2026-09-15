@@ -46,6 +46,7 @@
 /* TELEMETRY (hc-data; failures never affect protection) */
 #define MQTT_BROKER_URI                 "mqtt://192.168.11.16:1883"
 #define MQTT_TOPIC_PREFIX               "water"
+#define TELEMETRY_MQTT_USER             "water-controller"
 #define MQTT_OUTBOX_LIMIT_BYTES         32768
 #define TELEMETRY_QUEUE_LEN             64
 #define TELEMETRY_SAMPLE_PERIOD_S       10      // flow samples published while water flows

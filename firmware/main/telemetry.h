@@ -21,7 +21,7 @@ typedef struct {
 
 /* Starts the MQTT client and the telemetry task. Nothing here can block or stop protection:
  * producers only do a non-blocking queue send, the task talks to MQTT. */
-void telemetry_start(void);
+void telemetry_start(const char *mqtt_pass);
 
 /* Non-blocking; dropped when the queue is full or telemetry is disabled. */
 void telemetry_post_event(const event_t *event);
