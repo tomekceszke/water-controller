@@ -18,18 +18,19 @@
 * { box-sizing: border-box; }
 html, body { margin: 0; background: #0f1e27; color: #e4eff3; }
 body {
-  min-height: 100vh; display: grid; place-items: center; font: 16px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif;
-  padding: env(safe-area-inset-top) 20px env(safe-area-inset-bottom);
+  min-height: 100vh; display: flex; justify-content: center; font: 16px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif;
+  padding: calc(env(safe-area-inset-top) + 18vh) 20px env(safe-area-inset-bottom);
 }
 form { width: 100%; max-width: 340px; }
-h1 { font: 600 28px/1.2 ui-rounded, "SF Pro Rounded", system-ui, sans-serif; margin: 0 0 20px; letter-spacing: -.01em; }
+h1, .sub { text-align: center; }
+h1 { font: 600 32px/1.2 ui-rounded, "SF Pro Rounded", system-ui, sans-serif; margin: 0 0 20px; letter-spacing: -.01em; }
 input, button { width: 100%; font: inherit; border-radius: 14px; padding: 15px 16px; }
 input { border: 1px solid #27465a; background: #162a35; color: inherit; }
 button { margin-top: 12px; border: 0; background: #56c2e6; color: #0f1e27; font-weight: 600; cursor: pointer; }
 button:disabled { opacity: .6; }
 :focus-visible { outline: 2px solid #56c2e6; outline-offset: 3px; }
 p { min-height: 1.5em; margin: 12px 2px 0; color: #ffb4a9; }
-.sub { min-height: 0; margin: -12px 0 20px; color: #8aa9b6; }
+.sub { min-height: 0; margin: -12px 0 28px; color: #8aa9b6; }
 </style>
 </head>
 <body>

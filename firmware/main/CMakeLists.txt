@@ -32,7 +32,12 @@ if(WATER_TEST_PULSES)
     endif()
 endif()
 
-# Spare-board rehearsal: -DWATER_OTA_FILE=water-controller-spare.bin (production never downloads it)
+# Spare board: -DWATER_SPARE=1 downloads water-controller-spare.bin (production never fetches it) and sends no
+# ntfy notifications (tests would spam the owner's phone)
+if(WATER_SPARE)
+    set(WATER_OTA_FILE water-controller-spare.bin)
+    target_compile_definitions(${COMPONENT_LIB} PRIVATE WATER_SPARE=1)
+endif()
 if(WATER_OTA_FILE)
     target_compile_definitions(${COMPONENT_LIB} PRIVATE OTA_FILE="${WATER_OTA_FILE}")
 endif()

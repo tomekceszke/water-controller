@@ -44,7 +44,7 @@ second) bricks the board; recovery then needs USB.
 
 ## Rehearsal on the spare board
 
-The spare builds use the file name `water-controller-spare.bin`. While the OTA server runs, production can therefore
+The spare builds (`-DWATER_SPARE=1`) use the file name `water-controller-spare.bin` and send no ntfy notifications. While the OTA server runs, production can therefore
 never download a rehearsal image, even if it reboots.
 
 ```sh

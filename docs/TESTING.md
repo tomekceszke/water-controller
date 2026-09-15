@@ -29,7 +29,7 @@ The test build (`-DWATER_TEST_PULSES=1`, never shipped) adds admin-only endpoint
 `tools/hw_test.py` drives the device over HTTP:
 
 ```sh
-firmware/build.sh -B build-testhw -DWATER_TEST_PULSES=1 -p /dev/cu.usbserial-0001 -b 115200 flash
+firmware/build.sh -B build-testhw -DWATER_TEST_PULSES=1 -DWATER_SPARE=1 -p /dev/cu.usbserial-0001 flash
 WC_PASSWORD=... WC_ADMIN=... tools/hw_test.py <spare-ip>
 ```
 

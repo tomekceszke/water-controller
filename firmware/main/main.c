@@ -37,10 +37,15 @@ static char s_mqtt_pass[65];
 
 static void reveal_credentials(void)
 {
+#ifdef WATER_SPARE
+    ESP_LOGW(TAG, "(not error) Spare-board build: ntfy notifications disabled");
+#endif
     bool ok = hi_secret_reveal(WIFI_PASS, s_wifi_pass, sizeof(s_wifi_pass))
               & hi_secret_reveal(HEADER_AUTHORIZATION_VALUE, s_admin_header, sizeof(s_admin_header))
+#ifndef WATER_SPARE
               & hi_secret_reveal(NTFY_TOPIC, s_ntfy_topic, sizeof(s_ntfy_topic))
               & hi_secret_reveal(NTFY_ERROR_TOPIC, s_ntfy_error_topic, sizeof(s_ntfy_error_topic))
+#endif
               & hi_secret_reveal(MQTT_PASS, s_mqtt_pass, sizeof(s_mqtt_pass));
     if (!ok) ESP_LOGE(TAG, "A credential in credentials.h is malformed");
 }

@@ -1,7 +1,7 @@
 #!/bin/zsh
 # Release build: firmware + migrator (with the firmware's bootloader and partition table embedded).
 # Output in releases/ (gitignored) with sha256 files. Uses ../home-idf when present (see firmware/build.sh).
-# tools/build_release.sh --spare   rehearsal images that download water-controller-spare.bin (separate build dirs)
+# tools/build_release.sh --spare   spare-board images: download water-controller-spare.bin, no ntfy (separate build dirs)
 set -eo pipefail
 ROOT=${0:A:h:h}
 local_home_idf="${ROOT:h}/home-idf"
@@ -14,7 +14,7 @@ fi
 if [ "$1" = "--spare" ]; then
     shift
     export BUILD_DIR=build-spare
-    set -- -B build-spare -DWATER_OTA_FILE=water-controller-spare.bin "$@"
+    set -- -B build-spare -DWATER_SPARE=1 "$@"
     OUT="$ROOT/releases/spare"
 else
     OUT="$ROOT/releases"
