@@ -19,7 +19,7 @@ The plan is in `~/.claude/plans/cele-odnosnie-tego-projektu-rosy-moler.md`. Stag
 - [x] 3 PWA
 - [x] 4 hc-data (deployed 2026-09-15, history imported; Grafana not done)
 - [~] 5 migration (rehearsed on the spare 2026-09-15, production pending)
-- [ ] 6 docs/portfolio
+- [x] 6 docs/portfolio (README, LICENSE, CI host tests; firmware CI waits for home-idf to be public)
 - [ ] 7 anomaly model
 - [ ] 8 GCP shutdown
 
