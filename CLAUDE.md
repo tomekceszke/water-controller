@@ -195,5 +195,9 @@ tools/dev_proxy.py <device-ip> --port 8765   # serves firmware/web/*.html locall
   - First production flow: Grohe Rapid SL full flush measured **7.59 L** (3620 pulses at 477/L, 57 s, 8.0 L/min).
   - Check the cistern's full-flush setting (6 / 7.5 / 9 L?). With 7.5 L the factor 477 is right (~1 %). With 6 L it would be ~600, outside the ±10 % datasheet tolerance.
   - Confirm with the bucket test (`docs/CALIBRATION.md`); change the factor in the app (Protection → Pulses per liter).
+- [ ] **Unified sign-in page for all projects, moved to home-idf** (owner request 2026-09-15):
+  - one template in home-idf (`web/login.html` + a CMake helper like `home_idf_login_page(<lib> NAME "w-controller" ACCENT "#56c2e6")`) gzipped at build time and served by `hi_httpd` when an app does not provide its own;
+  - same look as water-controller's current page (name centred, higher up), device name only, nothing else about the device;
+  - adopt in water-controller first, then gate (`g-controller`), heating and floor-heating when they move to home-idf.
 - [ ] Stage 7 anomaly model; stage 8 GCP shutdown (not before 2026-09-29).
 - [ ] Sibling projects: CI everywhere (gate: none, heating: not on GitHub yet), move them to home-idf.
