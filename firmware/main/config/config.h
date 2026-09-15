@@ -50,8 +50,12 @@
 #define TELEMETRY_QUEUE_LEN             64
 #define TELEMETRY_SAMPLE_PERIOD_S       10      // flow samples published while water flows
 
-/* OTA */
-#define OTA_URL                         "https://192.168.11.15:8070/water-controller.bin"
+/* OTA (rehearsal builds for the spare board use another file name, so production never fetches them:
+ * -DWATER_OTA_FILE=water-controller-spare.bin) */
+#ifndef OTA_FILE
+#define OTA_FILE                        "water-controller.bin"
+#endif
+#define OTA_URL                         "https://192.168.11.15:8070/" OTA_FILE
 
 /* LOGGING */
 #define LOG_UDP_IP                      "192.168.11.15"

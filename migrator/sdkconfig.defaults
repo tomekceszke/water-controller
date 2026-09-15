@@ -1,0 +1,24 @@
+CONFIG_IDF_TARGET="esp32"
+
+# Same flash settings as the legacy and the target bootloader
+CONFIG_ESPTOOLPY_FLASHMODE_DIO=y
+CONFIG_ESPTOOLPY_FLASHFREQ_40M=y
+CONFIG_ESPTOOLPY_FLASHSIZE_4MB=y
+
+# Built against the legacy table layout: the image must fit a legacy 1 MB OTA slot
+CONFIG_PARTITION_TABLE_TWO_OTA=y
+
+# States written by esp_ota_set_boot_partition must suit the rollback-enabled target bootloader
+CONFIG_BOOTLOADER_APP_ROLLBACK_ENABLE=y
+
+# Required to rewrite the bootloader and partition table regions (the purpose of this image)
+CONFIG_SPI_FLASH_DANGEROUS_WRITE_ALLOWED=y
+CONFIG_HOME_IDF_MIGRATOR=y
+
+CONFIG_COMPILER_OPTIMIZATION_SIZE=y
+CONFIG_ESP_WIFI_SOFTAP_SUPPORT=n
+CONFIG_ESP_WIFI_11KV_SUPPORT=y
+CONFIG_ESP_PHY_REDUCE_TX_POWER=y
+CONFIG_LWIP_IPV6=n
+CONFIG_ESP_TASK_WDT_TIMEOUT_S=15
+CONFIG_ESP_MAIN_TASK_STACK_SIZE=8192

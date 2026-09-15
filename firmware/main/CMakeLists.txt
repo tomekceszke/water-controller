@@ -26,3 +26,8 @@ endif()
 if(WATER_TEST_PULSES)
     target_compile_definitions(${COMPONENT_LIB} PRIVATE WATER_TEST_PULSES=1)
 endif()
+
+# Spare-board rehearsal: -DWATER_OTA_FILE=water-controller-spare.bin (production never downloads it)
+if(WATER_OTA_FILE)
+    target_compile_definitions(${COMPONENT_LIB} PRIVATE OTA_FILE="${WATER_OTA_FILE}")
+endif()

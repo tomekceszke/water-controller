@@ -7,7 +7,8 @@ cd "$(dirname "$0")" || exit 1
 [ $# -eq 0 ] && set -- build
 local_home_idf="$(cd ../.. && pwd)/home-idf"
 if [ -z "$HOME_IDF_FROM_GIT" ] && [ -d "$local_home_idf" ]; then
-    # Keep the committed dependencies.lock pinned to git: the local override writes its own lock
-    set -- -DEXTRA_COMPONENT_DIRS="$local_home_idf" -DWC_DEPENDENCIES_LOCK="$PWD/dependencies.local.lock" "$@"
+    export HOME_IDF_LOCAL="$local_home_idf"
+else
+    unset HOME_IDF_LOCAL
 fi
 exec "$IDF_PYTHON_ENV_PATH/bin/python" "$IDF_PATH/tools/idf.py" "$@"

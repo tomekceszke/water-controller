@@ -36,3 +36,4 @@ legacy/
 sdkconfig.old
 dependencies.local.lock
 server/migrate/out/
+migrator/blobs/

@@ -18,7 +18,7 @@ The plan is in `~/.claude/plans/cele-odnosnie-tego-projektu-rosy-moler.md`. Stag
 - [~] 2 firmware (built, not on hardware)
 - [x] 3 PWA
 - [x] 4 hc-data (deployed 2026-09-15, history imported; Grafana not done)
-- [ ] 5 migration
+- [~] 5 migration (rehearsed on the spare 2026-09-15, production pending)
 - [ ] 6 docs/portfolio
 - [ ] 7 anomaly model
 - [ ] 8 GCP shutdown
@@ -91,6 +91,7 @@ main/
   config/       config.h (committed), credentials.h (never committed)
 web/            login.html (neutral), app.html (tabs Now/History/Protection/Device, vanilla, ~9.5 KB gzip), manifest, icon
 test/           host unit tests (tier1, rules)
+migrator/       one-shot OTA image (home-idf hi_migrator); build with tools/build_release.sh [--spare]
 partitions.csv  ota_0 2M / ota_1 1.875M (legacy ota_1 offset kept for the migrator) / coredump
 ```
 

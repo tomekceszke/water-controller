@@ -1,8 +1,12 @@
 cmake_minimum_required(VERSION 3.16)
-set(PROJECT_VER "3.0.0")
+set(PROJECT_VER "3.0.1")
+# HOME_IDF_LOCAL=<checkout>: build against a local home-idf instead of the pinned git tag, with a separate lock
+# file so the committed dependencies.lock stays pinned (build.sh sets it when ../../home-idf exists)
+if(DEFINED ENV{HOME_IDF_LOCAL})
+    set(EXTRA_COMPONENT_DIRS $ENV{HOME_IDF_LOCAL})
+endif()
 include($ENV{IDF_PATH}/tools/cmake/project.cmake)
-# build.sh with a local home-idf checkout writes its own lock, so the committed one stays pinned to git
-if(DEFINED WC_DEPENDENCIES_LOCK)
-    idf_build_set_property(DEPENDENCIES_LOCK ${WC_DEPENDENCIES_LOCK})
+if(DEFINED ENV{HOME_IDF_LOCAL})
+    idf_build_set_property(DEPENDENCIES_LOCK ${CMAKE_CURRENT_LIST_DIR}/dependencies.local.lock)
 endif()
 project(water-controller)
