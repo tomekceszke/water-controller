@@ -25,8 +25,13 @@ The plan is in `~/.claude/plans/cele-odnosnie-tego-projektu-rosy-moler.md`. Stag
 
 ## Protection tiers (design rule for every change)
 
+- **Tier 0**: close the valve after **60 minutes** of continuous flow.
+  - Hard-coded in `tier0.h`: no setting, API, snooze or NVS value can change it.
+  - Own flow tracking (pause > 5 s ends a flow) in the flow task; test builds shorten it (`WATER_TEST_TIER0_S`).
+  - Owner decision 2026-09-15: after an hour of water nothing is left to save; a long fill means reopening once an hour.
+
 - **Tier 1**: close the valve after continuous flow longer than a configurable limit (settable from the app, hard min/max,
-  can be raised but never disabled).
+  never above Tier 0's 60 min, never disabled).
   - Must work with no WiFi, NTP, MQTT, ntfy, httpd, Tier 2 or valid NVS (defaults from `config.h`).
   - Own task, monotonic clock, no network, no blocking on queues.
 - **Tier 2**: anomaly rules on the device (volume, burst, night window, micro-leak, vacation) plus thresholds learned on hc-data.
@@ -80,7 +85,8 @@ cmake -S firmware/test -B build-test && cmake --build build-test && ctest --test
 
 ```
 main/
-  main.c        boot: NVS → valve_restore → settings → Tier 1 task → health → log → Tier 2 → WiFi/notify/NTP/OTA/MQTT/auth/httpd
+  tier0.c       pure Tier 0 logic (hard-coded 60 min ceiling), host-tested
+  main.c        boot: NVS → valve_restore → settings → Tier 0/1 task → health → log → Tier 2 → WiFi/notify/NTP/OTA/MQTT/auth/httpd
   tier1.c       pure Tier 1 logic (continuous flow + gap + limit), host-tested
   rules.c       pure Tier 2 rules (volume, burst, night window, micro-leak, vacation, snooze), host-tested
   flow.c        Tier 1 task: PCNT (accumulating, glitch filter 10 us) every 1 s, core 1, task watchdog; valve alert;
@@ -93,7 +99,7 @@ main/
   api.c         routes on the home-idf HTTP server
   config/       config.h (committed), credentials.h (never committed)
 web/            login.html (neutral), app.html (tabs Now/History/Protection/Device, vanilla, ~9.5 KB gzip), manifest, icon
-test/           host unit tests (tier1, rules)
+test/           host unit tests (tier0, tier1, rules)
 migrator/       one-shot OTA image (home-idf hi_migrator); build with tools/build_release.sh [--spare]
 partitions.csv  ota_0 2M / ota_1 1.875M (legacy ota_1 offset kept for the migrator) / coredump
 ```

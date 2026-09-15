@@ -8,11 +8,11 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="Water">
+<meta name="apple-mobile-web-app-title" content="w-controller">
 <link rel="icon" href="/apple-touch-icon.png">
 <link rel="apple-touch-icon" href="/apple-touch-icon.png">
 <link rel="manifest" href="/manifest.webmanifest">
-<title>Water</title>
+<title>w-controller</title>
 <style>
 :root {
   --deep: #0f1e27; --pipe: #162a35; --seam: #27465a; --foam: #e4eff3; --silt: #8aa9b6;
@@ -67,8 +67,10 @@ button { font: inherit; color: inherit; }
 .fill { height: 100%; width: 0; background: var(--water); border-radius: 3px; transition: width 1s linear, background .3s; }
 .fill.late { background: var(--brass); }
 
-.readings { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin: 22px 0 24px; }
+.readings { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin: 22px 0 0; }
 .readings div { min-width: 0; }
+.readings div:nth-child(2) { text-align: center; }
+.readings div:nth-child(3) { text-align: right; }
 .num { display: block; font: 600 34px/1 var(--round); letter-spacing: -.02em; }
 .unit { color: var(--silt); font-size: 14px; }
 
@@ -84,7 +86,16 @@ button { font: inherit; color: inherit; }
 .open.holding .progress { width: 100%; transition: width 1.2s linear; }
 .open span { position: relative; }
 .action:disabled { opacity: .5; }
-.hint { color: var(--silt); font-size: 14px; margin-top: 10px; }
+.hint { color: var(--silt); font-size: 14px; margin: 8px 0 0; text-align: center; }
+.hint:empty { display: none; }
+/* Main action stays in thumb reach above the tab bar, only on the Now tab */
+.actionbar {
+  position: fixed; left: 0; right: 0; bottom: calc(58px + env(safe-area-inset-bottom)); z-index: 2;
+  padding: 10px max(var(--gap), env(safe-area-inset-left)) 10px;
+  background: linear-gradient(to top, var(--deep) 75%, rgba(15, 30, 39, 0));
+}
+.actionbar > * { max-width: 520px; margin-left: auto; margin-right: auto; }
+body.tab-now { padding-bottom: calc(150px + env(safe-area-inset-bottom)); }
 
 .banner { margin: 12px 0 0; padding: 12px 14px; border-radius: 12px; background: #3a1f1c; color: #ffd6d0; }
 .banner.info { background: var(--pipe); color: var(--foam); }
@@ -154,6 +165,12 @@ nav button[aria-current=page] { color: var(--water); }
     <p class="sub" id="subline"></p>
     <div id="banner" class="banner" role="status" hidden></div>
 
+    <div class="readings">
+      <div><span class="num" id="lpm">0</span><span class="unit">L/min</span></div>
+      <div><span class="num" id="liters">0</span><span class="unit" id="litersUnit">L this flow</span></div>
+      <div><span class="num" id="today">0</span><span class="unit">L today</span></div>
+    </div>
+
     <svg class="pipe" viewBox="0 0 360 150" aria-hidden="true">
       <rect class="wall" x="1" y="55" width="358" height="40" rx="8"/>
       <rect class="up" x="4" y="58" width="136" height="34" rx="5"/>
@@ -172,15 +189,7 @@ nav button[aria-current=page] { color: var(--water); }
       <div class="track"><div class="fill" id="fill"></div></div>
     </div>
 
-    <div class="readings">
-      <div><span class="num" id="lpm">0</span><span class="unit">L/min</span></div>
-      <div><span class="num" id="liters">0</span><span class="unit" id="litersUnit">L this flow</span></div>
-      <div><span class="num" id="today">0</span><span class="unit">L today</span></div>
-    </div>
 
-    <button class="action shut" id="shutBtn" type="button">Shut off water</button>
-    <button class="action open" id="openBtn" type="button" hidden><i class="progress"></i><span>Hold to turn water on</span></button>
-    <p class="hint" id="actionHint"></p>
 
     <h2 id="latestTitle" hidden>Latest</h2>
     <ul class="events" id="latest"></ul>
@@ -201,7 +210,7 @@ nav button[aria-current=page] { color: var(--water); }
     <h2>Shut-off limit</h2>
     <ul class="list">
       <li>
-        <div class="k">Continuous flow<small>Always on, works without Wi-Fi</small></div>
+        <div class="k">Continuous flow<small>Always on, works without Wi-Fi, up to 1 hour</small></div>
         <div class="stepper">
           <button type="button" data-step="-1" aria-label="Shorter">−</button>
           <output id="limitOut">20 min</output>
@@ -209,7 +218,7 @@ nav button[aria-current=page] { color: var(--water); }
         </div>
       </li>
     </ul>
-    <p class="note">The valve closes when water runs without a break for longer than this.</p>
+    <p class="note">The valve closes when water runs without a break for longer than this. Independently of this setting, it always closes after 1 hour of continuous flow; turn the water back on to continue.</p>
 
     <h2>Smart rules</h2>
     <ul class="list rules" id="rules">
@@ -258,6 +267,12 @@ nav button[aria-current=page] { color: var(--water); }
   </section>
 </main>
 
+<div class="actionbar" id="actionbar">
+  <button class="action shut" id="shutBtn" type="button">Shut off water</button>
+  <button class="action open" id="openBtn" type="button" hidden><i class="progress"></i><span>Hold to turn water on</span></button>
+  <p class="hint" id="actionHint"></p>
+</div>
+
 <nav aria-label="Sections">
   <button type="button" data-tab="now" aria-current="page"><svg viewBox="0 0 24 24"><path d="M12 3s6 6.4 6 11a6 6 0 0 1-12 0c0-4.6 6-11 6-11z"/></svg>Now</button>
   <button type="button" data-tab="history"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></svg>History</button>
@@ -290,7 +305,7 @@ const ago = ts => {
   return new Date(ts * 1000).toLocaleDateString([], {day: "numeric", month: "short"});
 };
 const defaults = {max_event_liters: 300, burst_lpm: 40, burst_s: 60, night_max_liters: 20, leak_notify_min: 120, vacation_max_liters: 5};
-const reasons = {tier1: "the shut-off limit", tier2: "a smart rule", user: "you", admin: "a script", restore: "restart"};
+const reasons = {tier0: "the 1-hour safety limit", tier1: "the shut-off limit", tier2: "a smart rule", user: "you", admin: "a script", restore: "restart"};
 const ruleNames = {max_volume: "too much in one go", burst: "burst pipe", night: "night use", vacation: "away from home", leak: "dripping leak"};
 // Firmware details use rule ids ("max_volume 5 L"): show words instead
 const humanize = text => (text || "").replace(/^closed, /, "").replace(/\b(max_volume|burst|night|vacation|leak)\b/, id => ruleNames[id]);
@@ -467,6 +482,8 @@ async function loadEvents() {
 function show(name) {
   tab = name;
   document.querySelectorAll(".tab").forEach(t => { t.hidden = t.id !== name; });
+  $("actionbar").hidden = name !== "now";
+  document.body.classList.toggle("tab-now", name === "now");
   document.querySelectorAll("nav button").forEach(b => {
     if (b.dataset.tab === name) b.setAttribute("aria-current", "page");
     else b.removeAttribute("aria-current");
@@ -476,6 +493,7 @@ function show(name) {
   refresh();
 }
 document.querySelectorAll("nav button").forEach(b => b.addEventListener("click", () => show(b.dataset.tab)));
+document.body.classList.add("tab-now");
 
 async function setValve(stateName) {
   try { state = await api("/api/valve", {state: stateName}); renderNow(state); }
@@ -503,7 +521,7 @@ async function saveSettings(patch) {
   try { state = await api("/api/settings", patch); renderProtection(state); renderNow(state); }
   catch (e) { banner(`Settings not saved: ${e.message}`); }
 }
-const limitSteps = [60, 120, 300, 600, 900, 1200, 1800, 2700, 3600, 5400, 7200, 10800, 14400];
+const limitSteps = [60, 120, 300, 600, 900, 1200, 1800, 2700, 3600];
 document.querySelectorAll("[data-step]").forEach(b => b.addEventListener("click", () => {
   const cur = state.settings.tier1_limit_s;
   const dir = Number(b.dataset.step);

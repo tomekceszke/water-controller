@@ -1,6 +1,6 @@
 {
-  "name": "Water controller",
-  "short_name": "Water",
+  "name": "w-controller",
+  "short_name": "w-controller",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",

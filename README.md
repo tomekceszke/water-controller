@@ -52,6 +52,8 @@ The design rule for every line of code: the core function must survive failures 
 ```mermaid
 flowchart LR
     meter([Flow meter pulses]) --> pcnt[PCNT counter<br/>hardware, 16-bit, accumulated]
+    pcnt --> t0{{"Tier 0<br/>continuous flow > 60 min?"}}
+    t0 -- yes --> valve
     pcnt --> t1{{"Tier 1 task<br/>continuous flow > limit?"}}
     t1 -- yes --> valve[[Valve closed<br/>state saved in NVS]]
     t1 -. samples, never blocks .-> q1[(queue)]
@@ -63,13 +65,17 @@ flowchart LR
     server[(PostgreSQL history)] -. learned thresholds, planned .-> t2
 ```
 
-| | Tier 1 | Tier 2 |
-|---|---|---|
-| Rule | Water runs without a break for longer than the limit (1 min–4 h, set in the app) | Volume per flow, burst rate, night window, micro-leak notice, away mode |
-| Depends on | nothing: runs in its own watchdog-guarded task on core 1, monotonic clock, no network, no allocation, never waits on a queue | local clock for the night rule; may be paused |
-| If it fails | the task watchdog resets the device; the valve state is restored from NVS | Tier 1 is unaffected (verified with the Tier 2 task suspended) |
+| | Tier 0 | Tier 1 | Tier 2 |
+|---|---|---|---|
+| Rule | 60 min of continuous flow, **hard-coded** | Continuous flow longer than the limit set in the app (1 min–1 h) | Volume per flow, burst rate, night window, micro-leak notice, away mode |
+| Can be changed | never: no setting, API, snooze or NVS value touches it | from the app, clamped | from the app, can be paused |
+| Depends on | nothing; own flow tracking in the watchdog-guarded flow task | nothing: own task on core 1, monotonic clock, no network, no allocation, never waits on a queue | local clock for the night rule |
+| If it fails | the task watchdog resets the device; the valve state is restored from NVS | same | Tier 1 and Tier 0 are unaffected (verified with the Tier 2 task suspended) |
 
-Both tiers are pure C modules (`tier1.c`, `rules.c`) with host unit tests.
+Tier 0 guards against anything going wrong with Tier 1 (a bad setting, a bug in its logic or in storage). A long,
+legitimate fill (a pool) just means turning the water back on in the app once an hour.
+
+All tiers are pure C modules (`tier0.c`, `tier1.c`, `rules.c`) with host unit tests.
 - On the spare board, a test build drives pulses into the meter input.
 - `tools/hw_test.py` then checks 31 things end-to-end, including Tier 1 closing the valve with Wi-Fi switched off.
 - Details: [docs/TESTING.md](docs/TESTING.md).

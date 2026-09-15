@@ -41,5 +41,8 @@ tier1_result_t tier1_update(tier1_state_t *state, const tier1_config_t *config, 
 /* Duration of the current (or just ended) flow in ms. */
 int64_t tier1_elapsed_ms(const tier1_state_t *state, int64_t now_ms);
 
+/* The valve was opened (by a person): a flow that is still running gets a new, full limit from now. */
+void tier1_valve_opened(tier1_state_t *state, int64_t now_ms);
+
 /* Seconds left before a trip, 0 when not flowing or already tripped. */
 uint32_t tier1_remaining_s(const tier1_state_t *state, const tier1_config_t *config, int64_t now_ms);

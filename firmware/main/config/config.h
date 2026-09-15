@@ -3,7 +3,7 @@
 #include "driver/gpio.h"
 
 /* DEVICE */
-#define DEVICE_HOSTNAME                 "water-controller"
+#define DEVICE_HOSTNAME                 "w-controller"
 
 /* GPIO */
 #define GPIO_FLOW_METER                 GPIO_NUM_4      // PM-3/4-B open collector, rising edges
@@ -22,7 +22,7 @@
 /* TIER 1 (defaults and hard bounds; the limit is set from the app) */
 #define TIER1_LIMIT_DEFAULT_S           1200
 #define TIER1_LIMIT_MIN_S               60
-#define TIER1_LIMIT_MAX_S               (4 * 3600)
+#define TIER1_LIMIT_MAX_S               3600    // not above Tier 0 (tier0.h, hard-coded 60 min)
 #define TIER1_GAP_MS                    2000    // a pause longer than this ends a continuous flow
 #define VALVE_CLOSING_S                 15      // flow after a close for longer than this = valve failure alert
 

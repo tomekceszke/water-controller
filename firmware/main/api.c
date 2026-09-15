@@ -15,6 +15,7 @@
 #include "rules.h"
 #include "settings.h"
 #include "telemetry.h"
+#include "tier0.h"
 #include "valve.h"
 
 static const char *TAG = "API";
@@ -73,6 +74,7 @@ static cJSON *status_json(void)
     cJSON_AddNumberToObject(flow, "liters", liters(f.flow_pulses, s.pulses_per_liter));
     cJSON_AddNumberToObject(flow, "seconds", f.flow_ms / 1000);
     cJSON_AddNumberToObject(flow, "max_lpm", f.flow_max_lpm_x10 / 10.0);
+    cJSON_AddNumberToObject(flow, "tier0_limit_s", TIER0_LIMIT_S);
     cJSON_AddNumberToObject(flow, "tier1_limit_s", f.tier1_limit_s);
     cJSON_AddNumberToObject(flow, "tier1_remaining_s", f.tier1_remaining_s);
     cJSON_AddBoolToObject(flow, "tier1_alive", now_ms - f.heartbeat_ms < 5 * FLOW_SAMPLE_MS);

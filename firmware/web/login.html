@@ -9,11 +9,11 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="Water">
+<meta name="apple-mobile-web-app-title" content="w-controller">
 <link rel="icon" href="/apple-touch-icon.png">
 <link rel="apple-touch-icon" href="/apple-touch-icon.png">
 <link rel="manifest" href="/manifest.webmanifest">
-<title>Sign in</title>
+<title>w-controller</title>
 <style>
 * { box-sizing: border-box; }
 html, body { margin: 0; background: #0f1e27; color: #e4eff3; }
@@ -22,18 +22,20 @@ body {
   padding: env(safe-area-inset-top) 20px env(safe-area-inset-bottom);
 }
 form { width: 100%; max-width: 340px; }
-h1 { font: 600 28px/1.2 ui-rounded, "SF Pro Rounded", system-ui, sans-serif; margin: 0 0 20px; }
+h1 { font: 600 28px/1.2 ui-rounded, "SF Pro Rounded", system-ui, sans-serif; margin: 0 0 20px; letter-spacing: -.01em; }
 input, button { width: 100%; font: inherit; border-radius: 14px; padding: 15px 16px; }
 input { border: 1px solid #27465a; background: #162a35; color: inherit; }
 button { margin-top: 12px; border: 0; background: #56c2e6; color: #0f1e27; font-weight: 600; cursor: pointer; }
 button:disabled { opacity: .6; }
 :focus-visible { outline: 2px solid #56c2e6; outline-offset: 3px; }
 p { min-height: 1.5em; margin: 12px 2px 0; color: #ffb4a9; }
+.sub { min-height: 0; margin: -12px 0 20px; color: #8aa9b6; }
 </style>
 </head>
 <body>
 <form id="form">
-  <h1>Sign in</h1>
+  <h1>w-controller</h1>
+  <p class="sub">Sign in to continue</p>
   <label for="password" hidden>Password</label>
   <input id="password" type="password" autocomplete="current-password" placeholder="Password" required autofocus>
   <button id="submit">Sign in</button>

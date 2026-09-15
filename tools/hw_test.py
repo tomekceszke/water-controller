@@ -80,6 +80,7 @@ def wait_idle(timeout=30):
     end = time.time() + timeout
     while time.time() < end:
         if not status()["flow"]["flowing"]:
+            time.sleep(6)       # Tier 0 joins flows separated by less than 5 s
             return True
         time.sleep(1)
     return False
@@ -211,6 +212,39 @@ wait_idle()
 s = status()
 check("snoozed rule did not close", s["valve"]["state"] == "open", s["valve"]["reason"])
 request("POST", "/api/snooze", {"minutes": 0})
+
+print("Tier 1 limit is capped at 1 hour")
+check("tier1_limit_s 14400 clamped to 3600", settings(tier1_limit_s=14400)["settings"]["tier1_limit_s"] == 3600)
+check("status reports tier0_limit_s", status()["flow"]["tier0_limit_s"] in (150, 3600))
+
+print("Tier 0: test build ceiling 150 s, Tier 1 at its 1 h maximum, 50 Hz for 200 s")
+valve("open")
+settings(tier1_limit_s=3600, max_event_liters=0)
+t0 = time.time()
+pulses(50, 200)
+closed_at = None
+while time.time() - t0 < 190:
+    if status()["valve"]["state"] == "closed" and closed_at is None:
+        closed_at = time.time() - t0
+    time.sleep(1)
+s = status()
+check("closed by tier0", s["valve"]["reason"] == "tier0", f'{s["valve"]["reason"]} {s["valve"]["detail"]}')
+check("closed after ~150 s", closed_at is not None and 148 <= closed_at <= 155, f"{closed_at and round(closed_at)} s")
+
+print("Tier 0: valve opened again while water still runs gets a fresh limit")
+pulses(50, 200)                          # water keeps "running" (generator ignores the valve)
+valve("open")
+t0 = time.time()
+closed_at = None
+while time.time() - t0 < 170:
+    if status()["valve"]["state"] == "closed" and closed_at is None:
+        closed_at = time.time() - t0
+    time.sleep(1)
+s = status()
+check("closed by tier0 again", s["valve"]["reason"] == "tier0", s["valve"]["reason"])
+check("again after ~150 s from the reopen", closed_at is not None and 147 <= closed_at <= 156, f"{closed_at and round(closed_at)} s")
+pulses(0, 0)
+wait_idle()
 
 print("Tier 1 without WiFi: limit 60 s, 50 Hz for 100 s, WiFi off for 90 s")
 settings(tier1_limit_s=60, max_event_liters=0)

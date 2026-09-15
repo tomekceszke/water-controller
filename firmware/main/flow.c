@@ -16,6 +16,7 @@
 #include "protect.h"
 #include "settings.h"
 #include "telemetry.h"
+#include "tier0.h"
 #include "tier1.h"
 #include "valve.h"
 
@@ -123,12 +124,15 @@ static void flow_task(void *arg)
 {
     esp_task_wdt_add(NULL);
 
+    tier0_state_t t0;
+    tier0_init(&t0);
     tier1_state_t t1;
     tier1_init(&t1);
     int prev_count = 0;
     uint32_t max_lpm_x10 = 0;
     telemetry_sample_t tele = {0};
     int64_t closed_flow_since_ms = 0;       // water flowing while the valve is closed
+    valve_state_t last_valve = valve_get();
     bool alert_sent = false;
     TickType_t wake = xTaskGetTickCount();
     int64_t last_ms = esp_timer_get_time() / 1000;
@@ -151,13 +155,28 @@ static void flow_task(void *arg)
             ppl = s.pulses_per_liter;
         }
         tier1_config_t cfg = {.limit_s = settings_tier1_limit_s(), .gap_ms = TIER1_GAP_MS};
+        // A person opened the valve again: water that is still running gets a fresh limit, never none
+        valve_state_t valve_now = valve_get();
+        if (last_valve == VALVE_CLOSED && valve_now == VALVE_OPEN) {
+            tier0_valve_opened(&t0, now_ms);
+            tier1_valve_opened(&t1, now_ms);
+        }
+        last_valve = valve_now;
         bool was_flowing = t1.flowing;
+        // Tier 0 first and independent of settings: nothing configurable can raise or disable it
+        bool t0_trip = tier0_update(&t0, now_ms, pulses);
         tier1_result_t r = tier1_update(&t1, &cfg, now_ms, pulses);
 
         uint32_t lpm_x10 = dt_ms && ppl ? (uint32_t) ((uint64_t) pulses * 600000u / ((uint64_t) dt_ms * ppl)) : 0;
         if (r == TIER1_STARTED || (!was_flowing && t1.flowing)) max_lpm_x10 = 0;
         if (t1.flowing && lpm_x10 > max_lpm_x10) max_lpm_x10 = lpm_x10;
 
+        if (t0_trip) {
+            ESP_LOGE(TAG, "Tier 0: continuous flow for %d min, closing the valve", TIER0_LIMIT_S / 60);
+            char detail[24];
+            snprintf(detail, sizeof(detail), "flow > %d min", TIER0_LIMIT_S / 60);
+            valve_set(VALVE_CLOSED, VALVE_BY_TIER0, detail);
+        }
         if (r == TIER1_TRIP) {
             char detail[24];
             snprintf(detail, sizeof(detail), "flow > %lu min", (unsigned long) (cfg.limit_s / 60));

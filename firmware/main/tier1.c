@@ -7,6 +7,13 @@ void tier1_init(tier1_state_t *state)
     memset(state, 0, sizeof(*state));
 }
 
+void tier1_valve_opened(tier1_state_t *state, int64_t now_ms)
+{
+    if (!state->flowing) return;
+    state->start_ms = now_ms;
+    state->tripped = false;
+}
+
 int64_t tier1_elapsed_ms(const tier1_state_t *state, int64_t now_ms)
 {
     if (state->start_ms == 0 && !state->flowing) return 0;

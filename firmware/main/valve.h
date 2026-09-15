@@ -13,8 +13,9 @@ typedef enum {
     VALVE_BY_RESTORE = 0,   // state restored at boot
     VALVE_BY_USER,          // web app
     VALVE_BY_ADMIN,         // script / API
-    VALVE_BY_TIER1,         // continuous flow limit
+    VALVE_BY_TIER1,         // continuous flow limit (set in the app)
     VALVE_BY_TIER2,         // anomaly rule
+    VALVE_BY_TIER0,         // hard-coded 60 min ceiling
 } valve_reason_t;
 
 /* First thing at boot, before anything that can block or fail: drives the valve line to the state stored in NVS

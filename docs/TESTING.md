@@ -4,7 +4,7 @@ Protection is tested at two levels: pure logic on the host, then the real firmwa
 
 ## Host unit tests
 
-`firmware/test/` compiles `tier1.c` and `rules.c` without ESP-IDF:
+`firmware/test/` compiles `tier0.c`, `tier1.c` and `rules.c` without ESP-IDF:
 
 ```sh
 cmake -S firmware/test -B build-test && cmake --build build-test && ctest --test-dir build-test
@@ -12,6 +12,7 @@ cmake -S firmware/test -B build-test && cmake --build build-test && ctest --test
 
 | Suite | Covers |
 |---|---|
+| `test_tier0` | hard-coded 60 min, trips once, a trickle with 5 s pauses is continuous, a longer pause restarts the hour, water turned on again gets a new hour, reopening while water still runs restarts the limit, no repeated trips without a reopen |
 | `test_tier1` | flow start/end with the pause gap, trip exactly once at the limit, trickle flow keeps the timer, trip during a pause, fresh state after a trip, limit lowered during a flow, 2 h of high flow without overflow |
 | `test_rules` | all rules off, max volume (once per flow, exact pulse threshold), reset between flows, burst duration, night window across midnight, night rule off without a clock, snooze vs vacation, snooze expiry, micro-leak notification once, leak counter reset |
 
@@ -22,7 +23,8 @@ A deliberately broken `tier1.c` (trip flag not latched) makes the suite fail, so
 The test build (`-DWATER_TEST_PULSES=1`, never shipped) adds admin-only endpoints:
 - a square-wave generator on the flow meter pin (LEDC drives the pad, PCNT counts it back);
 - a WiFi outage switch;
-- a Tier 2 hang switch.
+- a Tier 2 hang switch;
+- a Tier 0 ceiling shortened to 150 s and a throwaway web password (`-DWATER_TEST_SALT_HEX/-DWATER_TEST_HASH_HEX`).
 
 `tools/hw_test.py` drives the device over HTTP:
 
@@ -31,7 +33,7 @@ firmware/build.sh -B build-testhw -DWATER_TEST_PULSES=1 -p /dev/cu.usbserial-000
 WC_PASSWORD=... WC_ADMIN=... tools/hw_test.py <spare-ip>
 ```
 
-Result on 2026-09-15 (firmware 3.0.0, ESP32-D0WDQ6 spare board): **31/31 checks passed**.
+Result on 2026-09-15 (firmware 3.1.0, ESP32-D0WDQ6 spare board): **37/37 checks passed** (3.0.0: 31/31).
 
 | Area | Check | Result |
 |---|---|---|
@@ -42,6 +44,9 @@ Result on 2026-09-15 (firmware 3.0.0, ESP32-D0WDQ6 spare board): **31/31 checks 
 | Diagnostics | GPIO edge timing at 100 Hz | 2 000 edges, min interval 9 999 µs, 0 glitches |
 | Tier 1 | limit 60 s, continuous flow | closed after 61 s; alert "still flowing" while pulses continue |
 | Tier 1 | WiFi off for 90 s during the flow | closed by Tier 1, no reboot |
+| Tier 1 | limit set to 4 h from the API | clamped to 1 h |
+| Tier 0 | Tier 1 at its 1 h maximum, ceiling 150 s (test build) | closed by Tier 0 after 152 s |
+| Tier 0 | valve opened again while water still runs | closed by Tier 0 again 152 s after the reopen |
 | Tier 1 | Tier 2 task suspended | closed by Tier 1 after 61 s |
 | Valve | reboot while closed / open | state and reason unchanged |
 | Settings | reboot | Tier 1 limit persisted |
@@ -50,7 +55,8 @@ Result on 2026-09-15 (firmware 3.0.0, ESP32-D0WDQ6 spare board): **31/31 checks 
 
 The hardware test found two bugs:
 - logging started before the network stack crashed the device;
-- volume limits compared whole liters, so they fired one liter late.
+- volume limits compared whole liters, so they fired one liter late;
+- (3.1.0) a flow reopened before the water stopped kept the "already tripped" flag and had no limit any more. Tier 0 and Tier 1 now restart when the valve is opened.
 
 ## Still to verify on hardware
 

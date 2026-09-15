@@ -110,6 +110,19 @@ static void large_pulse_counts_do_not_overflow(void)
     CHECK(s.flowing);
 }
 
+static void reopen_during_running_flow_restarts_the_limit(void)
+{
+    tier1_state_t s;
+    tier1_init(&s);
+    int64_t t = 1000;
+    feed(&s, &t, 61, 10);               // trip at 60 s
+    CHECK(s.tripped);
+    tier1_valve_opened(&s, t);          // reopened while water still runs
+    CHECK(!s.tripped);
+    CHECK_EQ(feed(&s, &t, 59, 10), TIER1_FLOWING);
+    CHECK_EQ(feed(&s, &t, 1, 10), TIER1_TRIP);
+}
+
 int main(void)
 {
     RUN(idle_without_pulses);
@@ -120,5 +133,6 @@ int main(void)
     RUN(new_flow_after_trip_starts_fresh);
     RUN(limit_change_applies_to_running_flow);
     RUN(large_pulse_counts_do_not_overflow);
+    RUN(reopen_during_running_flow_restarts_the_limit);
     return report();
 }

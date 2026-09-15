@@ -95,8 +95,13 @@ void app_main(void)
     telemetry_start(s_mqtt_pass);
     hi_auth_init(&(hi_auth_config_t) {
         .password_iterations = AUTH_PASSWORD_ITERATIONS,
+#ifdef WATER_TEST_SALT_HEX      // hardware test builds: throwaway password, never the owner's
+        .password_salt_hex = WATER_TEST_SALT_HEX,
+        .password_hash_hex = WATER_TEST_HASH_HEX,
+#else
         .password_salt_hex = AUTH_PASSWORD_SALT_HEX,
         .password_hash_hex = AUTH_PASSWORD_HASH_HEX,
+#endif
         .admin_header_value = s_admin_header,
     });
     api_start();

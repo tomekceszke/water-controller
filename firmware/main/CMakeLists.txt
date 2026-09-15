@@ -1,5 +1,6 @@
 idf_component_register(
     SRCS "main.c"
+         "tier0.c"
          "tier1.c"
          "rules.c"
          "valve.c"
@@ -24,7 +25,11 @@ endif()
 
 # Spare-board hardware tests only: idf.py -B build-testhw -DWATER_TEST_PULSES=1 build (never ship)
 if(WATER_TEST_PULSES)
-    target_compile_definitions(${COMPONENT_LIB} PRIVATE WATER_TEST_PULSES=1)
+    target_compile_definitions(${COMPONENT_LIB} PRIVATE WATER_TEST_PULSES=1 WATER_TEST_TIER0_S=150)
+    if(WATER_TEST_SALT_HEX AND WATER_TEST_HASH_HEX)
+        target_compile_definitions(${COMPONENT_LIB} PRIVATE WATER_TEST_SALT_HEX="${WATER_TEST_SALT_HEX}"
+                                                            WATER_TEST_HASH_HEX="${WATER_TEST_HASH_HEX}")
+    endif()
 endif()
 
 # Spare-board rehearsal: -DWATER_OTA_FILE=water-controller-spare.bin (production never downloads it)
