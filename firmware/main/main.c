@@ -20,6 +20,7 @@
 #include "protect.h"
 #include "settings.h"
 #include "telemetry.h"
+#include "testhw.h"
 #include "valve.h"
 
 static const char *TAG = "MAIN";
@@ -80,6 +81,7 @@ void app_main(void)
         .admin_header_value = HEADER_AUTHORIZATION_VALUE,
     });
     api_start();
+    testhw_start();
     hi_health_start(&(hi_health_config_t) {
         .is_healthy = healthy,
         .log_stats = log_stats,

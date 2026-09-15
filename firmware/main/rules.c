@@ -106,17 +106,18 @@ rules_decision_t rules_update(rules_state_t *state, const rules_config_t *config
     if (state->closed_this_flow) return d;
 
     uint32_t event_l = liters(config, state->event_pulses);
+    uint64_t ppl = config->pulses_per_liter;
     bool snoozed = s->now_ms < state->snooze_until_ms;
     rule_t hit = RULE_NONE;
-    if (config->vacation && event_l > config->vacation_max_liters) {
+    // Limits compare pulses, not whole liters: "above 5 L" fires at 5.0 L + 1 pulse, not at 6 L
+    if (config->vacation && state->event_pulses > config->vacation_max_liters * ppl) {
         hit = RULE_VACATION;
-    } else if (!snoozed && config->max_event_liters && event_l > config->max_event_liters) {
+    } else if (!snoozed && config->max_event_liters && state->event_pulses > config->max_event_liters * ppl) {
         hit = RULE_MAX_VOLUME;
     } else if (!snoozed && config->burst_s && state->burst_since_ms != 0
                && s->now_ms - state->burst_since_ms >= (int64_t) config->burst_s * 1000) {
         hit = RULE_BURST;
-    } else if (!snoozed && config->night_max_liters
-               && liters(config, state->night_pulses) > config->night_max_liters) {
+    } else if (!snoozed && config->night_max_liters && state->night_pulses > config->night_max_liters * ppl) {
         hit = RULE_NIGHT;
     }
     if (hit != RULE_NONE) {

@@ -28,3 +28,8 @@ void protect_post_sample(const protect_sample_t *sample);
 void protect_snooze(uint32_t minutes);
 
 void protect_status(protect_status_t *out);
+
+#ifdef WATER_TEST_PULSES
+/* Test builds only: simulates a hung Tier 2 task. */
+void protect_test_suspend(bool suspend);
+#endif

@@ -18,6 +18,7 @@
 static const char *TAG = "TIER2";
 
 static QueueHandle_t s_queue;
+static TaskHandle_t s_task;
 static portMUX_TYPE s_mux = portMUX_INITIALIZER_UNLOCKED;
 static rules_state_t s_rules;
 static volatile uint32_t s_dropped;
@@ -103,7 +104,7 @@ void protect_start(void)
     rules_init(&s_rules);
     s_queue = xQueueCreate(PROTECT_QUEUE_LEN, sizeof(protect_sample_t));
     if (s_queue == NULL
-        || xTaskCreate(protect_task, "tier2", 4096, NULL, PROTECT_TASK_PRIORITY, NULL) != pdPASS) {
+        || xTaskCreate(protect_task, "tier2", 4096, NULL, PROTECT_TASK_PRIORITY, &s_task) != pdPASS) {
         ESP_LOGE(TAG, "Tier 2 not started (Tier 1 unaffected)");
         s_queue = NULL;
     }
@@ -136,3 +137,15 @@ void protect_status(protect_status_t *out)
     out->last_rule_mono_ms = s_last_rule_ms;
     out->last_rule_closed = s_last_rule_closed;
 }
+
+#ifdef WATER_TEST_PULSES
+void protect_test_suspend(bool suspend)
+{
+    if (s_task == NULL) return;
+    if (suspend) {
+        vTaskSuspend(s_task);
+    } else {
+        vTaskResume(s_task);
+    }
+}
+#endif

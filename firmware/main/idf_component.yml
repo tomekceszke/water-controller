@@ -2,4 +2,4 @@ dependencies:
   idf: ">=5.4"
   home-idf:
     git: https://github.com/tomekceszke/home-idf.git
-    version: v0.1.1
+    version: v0.1.2

@@ -49,6 +49,22 @@ static void max_volume_closes_once(void)
     CHECK(!d.close);
 }
 
+static void volume_limit_is_not_rounded_to_whole_liters(void)
+{
+    rules_state_t s;
+    rules_init(&s);
+    rules_config_t c = base_config();
+    c.max_event_liters = 5;
+    int64_t t = 0;
+    rules_sample_t smp = {.local_hour = 12, .sample_ms = 1000, .flowing = true};
+    smp.now_ms = t += 1000;
+    smp.pulses = 5 * K;
+    CHECK(!rules_update(&s, &c, &smp).close);           // exactly 5.0 L
+    smp.now_ms = t += 1000;
+    smp.pulses = 1;
+    CHECK(rules_update(&s, &c, &smp).close);            // 5.0 L + 1 pulse
+}
+
 static void volume_resets_between_flows(void)
 {
     rules_state_t s;
@@ -180,6 +196,7 @@ int main(void)
 {
     RUN(all_rules_off_never_trigger);
     RUN(max_volume_closes_once);
+    RUN(volume_limit_is_not_rounded_to_whole_liters);
     RUN(volume_resets_between_flows);
     RUN(burst_needs_duration);
     RUN(night_window_wraps_midnight);
