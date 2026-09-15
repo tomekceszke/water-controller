@@ -17,7 +17,7 @@ The plan is in `~/.claude/plans/cele-odnosnie-tego-projektu-rosy-moler.md`. Stag
 - [x] 1 home-idf
 - [~] 2 firmware (built, not on hardware)
 - [x] 3 PWA
-- [ ] 4 hc-data
+- [x] 4 hc-data (deployed 2026-09-15, history imported; Grafana not done)
 - [ ] 5 migration
 - [ ] 6 docs/portfolio
 - [ ] 7 anomaly model
@@ -145,7 +145,9 @@ tools/dev_proxy.py <device-ip> --port 8765   # serves firmware/web/*.html locall
 
 - **OTA server**: `https://192.168.11.15:8070` (`~/apps/ota-server` on .15, started on demand).
 - **UDP logs**: `192.168.11.15:1338` (`nc -ul 1338`).
-- **hc-data**: `192.168.11.16`, Mosquitto + PostgreSQL. Shared with `../heating-controller`, whose `server/install.sh` owns the Mosquitto passwd/ACL files today.
+- **hc-data**: `192.168.11.16`, Mosquitto + PostgreSQL shared with `../heating-controller`.
+  - Water part: `server/` (DB `water`, `wc-ingest`, backups); see `server/README.md`.
+  - Mosquitto passwd/acl are assembled from `/etc/mosquitto/{passwd.d,acl.d}` fragments by both projects' `install.sh`.
 - **GCP (legacy, to be shut down after cutover)**:
   - project `water-controller-351109`: Cloud Function `send-metrics`, dataset `flow_ds.flow_raw`;
   - older history in `vps1-ceszke-com.water_flow_ds.water_flow`;
