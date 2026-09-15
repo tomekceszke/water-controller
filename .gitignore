@@ -34,3 +34,4 @@ legacy/
 
 # ESP-IDF
 sdkconfig.old
+dependencies.local.lock
