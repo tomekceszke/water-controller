@@ -174,3 +174,11 @@ tools/dev_proxy.py <device-ip> --port 8765   # serves firmware/web/*.html locall
 - Check every change against the protection tiers above:
   - Tier 1 code (`flow.c`, `tier1.c`, `valve.c`) never calls the network, never waits on a queue, and never allocates in its loop.
   - Keep `tier1.c` / `rules.c` free of ESP-IDF includes and cover changes with host tests.
+
+## TODO
+
+- [ ] Production migration to 3.x (`docs/IDF5_MIGRATION.md`), after the open questions are settled.
+- [ ] Off-host backups of hc-data dumps (`/var/backups/water`, `/var/backups/heating` live only on the CT disk): choose a location.
+- [ ] Bucket calibration after the migration (`docs/CALIBRATION.md`).
+- [ ] Stage 7 anomaly model; stage 8 GCP shutdown (2 weeks after the cutover).
+- [ ] Sibling projects: CI everywhere (gate: none, heating: not on GitHub yet), move them to home-idf.
