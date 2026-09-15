@@ -1,0 +1,8 @@
+[Unit]
+Description=Nightly pg_dump of the water database
+
+[Service]
+Type=oneshot
+User=postgres
+ExecStart=/bin/sh -c 'pg_dump -Fc water > /var/backups/water/water-$(date +%%Y%%m%%d).dump.tmp && mv /var/backups/water/water-$(date +%%Y%%m%%d).dump.tmp /var/backups/water/water-$(date +%%Y%%m%%d).dump'
+ExecStartPost=/usr/bin/find /var/backups/water -name 'water-*.dump' -mtime +14 -delete

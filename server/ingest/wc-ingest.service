@@ -1,0 +1,19 @@
+[Unit]
+Description=water-controller MQTT -> PostgreSQL ingest
+After=network-online.target mosquitto.service postgresql.service
+Wants=network-online.target
+
+[Service]
+User=wc_ingest
+Group=wc_ingest
+EnvironmentFile=/etc/wc-server/secrets.env
+ExecStart=/opt/wc-server/venv/bin/python /opt/wc-server/ingest/wc_ingest.py
+Restart=always
+RestartSec=5
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,9 @@
+[Unit]
+Description=Nightly pg_dump of the water database
+
+[Timer]
+OnCalendar=*-*-* 03:25
+Persistent=true
+
+[Install]
+WantedBy=timers.target

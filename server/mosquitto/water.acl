@@ -1,0 +1,12 @@
+# water-controller (merged into /etc/mosquitto/acl by install.sh)
+user water-controller
+topic write water/+/flow
+topic write water/+/sample
+topic write water/+/valve
+topic write water/+/rule
+topic write water/+/alert
+topic readwrite water/+/status
+topic read water/+/config
+
+user wc-ingest
+topic read water/#
