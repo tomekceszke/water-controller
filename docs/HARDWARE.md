@@ -5,9 +5,9 @@
 | Part | Details |
 |---|---|
 | MCU | ESP32-WROOM-32 DevKit on a 7x9 cm prototype board |
-| Power | Screw terminal input, TO-220 regulator |
+| Power | Screw terminal input (DC, shared with the actuator), TO-220 regulator |
 | Flow meter | Termipol PM-3/4-B, DN20 brass, Hall sensor, NO open-collector output (10 mA), 5-18 VDC, 2-45 L/min, 477 pulses/L ±10 %; wires: black GND, red +, yellow signal ([datasheet](datasheet-flow-meter-pm3-4-b.pdf)) |
-| Valve | DN20 ball valve with an HP Control **A80 4-wire** actuator ([manual](Manual_A80_4-wires_230VAC.pdf), [wiring variants](Wersje_sterowania_silownikow_A80_i_A82.pdf)): power on red/black permanently, blue-green **shorted = open, open circuit = close**, < 10 s travel, limit switches, manual override |
+| Valve | DN20 ball valve with an HP Control **A80 4-wire, 9-24 V DC** actuator: red `+` / black `-` powered permanently, blue-green **shorted = open, open circuit = close**, < 10 s travel, limit switches cut the current at rest, manual override with a 5 mm hex key. Wiring of all A80/A82 variants: [Wersje_sterowania_silownikow_A80_i_A82.pdf](Wersje_sterowania_silownikow_A80_i_A82.pdf). Mechanics of the A80 4-wire (same actuator, 230 V AC supply): [Manual_A80_4-wires_230VAC.pdf](Manual_A80_4-wires_230VAC.pdf). Dedicated 9-24 V DC manual: [hpcontrol.de](https://hpcontrol.de/katalog/ONLINE-HPCONTROL/WEB/Electric_Actuators/Manual_A83_4-wires_9-24VDC.pdf) |
 | Connectors | 3-pin JST for the meter and the valve |
 | Indicators | Blue LED (flow), red LED (valve closed) |
 | Spare | Identical board for development and destructive tests |
@@ -45,7 +45,8 @@ To remove the movement completely:
 - A pull-up on the transistor base keeps "open" during reset, but then a closed valve would twitch open.
 - Only a latching element (bistable relay, or the A80 7-wire variant with position feedback) is glitch-free both ways.
 
-**Open question:** is the installed actuator the 230 V AC or the 9-24 V DC variant? With 230 V AC the blue-green contact may be at mains potential. Check before touching the enclosure.
+The installed actuator is the **9-24 V DC** variant (confirmed by the owner): the blue-green contact is low voltage and
+the transistor on the board switches it directly.
 
 ## Checks before the ESP-IDF 5.4.2 firmware
 
