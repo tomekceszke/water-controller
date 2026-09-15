@@ -35,8 +35,9 @@ limit switches stop it there.
 
 Consequences:
 - **Closed valve.** A reset never moves it.
-- **Open valve.** The reset window (about 0.56 s until `valve_restore()` in firmware 3.x, measured on the spare board)
-  lets the ball travel about 1/18 of its stroke towards closed, then back. A short flow dip; the state does not change.
+- **Open valve.** The reset window lasts about 0.9 s: ~0.35 s bootloader plus 0.56 s until `valve_restore()` in firmware
+  3.x (app log on the spare board). It lets the ball travel about 1/11 of its stroke towards closed, then back. A short
+  flow dip; the state does not change. Still to measure with a scope and a real actuator.
 - **ESP32 power loss with the actuator still powered.** The valve closes. That is safe, but the firmware then restores "open" when it boots.
 - **Legacy firmware.** Its reset window was longer (WiFi + OTA check before GPIO init, seconds).
 
