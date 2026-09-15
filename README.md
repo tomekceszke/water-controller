@@ -24,6 +24,8 @@ rebuilds it around one rule: **the shut-off must work even when everything else 
   <img src="docs/img/app-history.png" width="23%" alt="App: event history">
 </p>
 
+<p align="center"><sub>Screenshots of the device's web app, rendered with sample data.</sub></p>
+
 ## What it does
 
 - **Measures every flow**: liters, duration, rate (Hall-effect meter, 477 pulses per liter).
@@ -77,7 +79,7 @@ legitimate fill (a pool) just means turning the water back on in the app once an
 
 All tiers are pure C modules (`tier0.c`, `tier1.c`, `rules.c`) with host unit tests.
 - On the spare board, a test build drives pulses into the meter input.
-- `tools/hw_test.py` then checks 31 things end-to-end, including Tier 1 closing the valve with Wi-Fi switched off.
+- `tools/hw_test.py` then checks 37 things end-to-end, including Tier 1 closing the valve with Wi-Fi switched off and Tier 0 closing it again after a reopen.
 - Details: [docs/TESTING.md](docs/TESTING.md).
 
 ## Architecture
