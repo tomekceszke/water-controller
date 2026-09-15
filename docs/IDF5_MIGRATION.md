@@ -67,11 +67,11 @@ nc -ul 1338
 
 ## Production checklist
 
-- [ ] Rehearsal passed, image hashes recorded below
-- [ ] Owner's web password hash in `credentials.h` (not the spare test password), ntfy topics set
-- [ ] Nobody uses water; valve open; stable mains
+- [x] Rehearsal passed, image hashes recorded below
+- [x] Owner's web password hash in `credentials.h` (not the spare test password), ntfy topics set
+- [x] Nobody uses water; valve open; stable mains
 - [ ] USB adapter and access to the enclosure possible in case a write is interrupted
-- [ ] BigQuery export right before the cutover (`server/migrate`), delta import after
+- [x] BigQuery export right before the cutover (`server/migrate`), delta import after
 - [ ] After: `/admin/hw-status` version 3.x, events arrive in hc-data, bucket test matches the calibration
 
 ## Rehearsal results (2026-09-15, spare board ESP32-D0WDQ6, MAC ec:62:60:83:a2:b0)
@@ -114,3 +114,32 @@ gate migration), migration from a legacy image that runs from ota_0 (the migrato
    - a short flow shows up as an event;
    - valve open.
 9. Stop the OTA server. Rerun `server/migrate` for the history delta. Stop the GCP function after 2 weeks.
+
+## Production migration (2026-09-15, night)
+
+| Time (CEST) | Step |
+|---|---|
+| 22:55 | Preflight: legacy up since 2026-09-11, valve open, no flow (last flow ended 22:19), OTA server stopped, hc-data services active |
+| 22:56 | BigQuery export (269 575 rows, last flow 22:18) + import into hc-data (269 551 flows, 4 022 wrap-suspect) |
+| 22:56 | Release built from `0d545d4` + home-idf v0.1.5 + owner credentials: firmware 3.1.0 `bad7f29d…`, migrator `f39237c3…` |
+| 22:56:47 | Legacy `POST /su` downloaded the migrator as `water-controller.bin` and sent DELETE (22:57:06) |
+| 23:01 | Migrator running at ota_1 @0x210000, all checks ok, stage `ready` |
+| 23:01:51 | Firmware 3.1.0 published under the same name; `POST /migrator/commit` |
+| 23:02:01 | New bootloader booted the migrator, which downloaded the firmware (DELETE 23:02:19) |
+| 23:02:30 | Firmware 3.1.0 answers; next boot-time OTA check gets 404 (no loop) |
+
+Verified after the migration:
+- `ota_0`, image verified (no pending verification), clock synced, RSSI -63 dBm, heap 183 KB free.
+- Valve open (restored default, no stored state yet), Tier 1 task alive, Tier 1 limit 20 min, Tier 0 60 min.
+- MQTT connected; hc-data `device_status` has `30aea40aba44 online` at 23:02:51.
+- Sign-in page `w-controller` served without a session.
+- Ping 3-6 ms, avg 4.5 ms (legacy: 53-84 ms).
+- OTA server on .15 stopped.
+
+Still to do: a real flow event in hc-data (the next time water is used), the bucket calibration, and switching off the
+GCP Cloud Function after two weeks (not before 2026-09-29).
+
+| Image | sha256 |
+|---|---|
+| `water-controller.bin` 3.1.0 (production) | `bad7f29deadcb864df3472b933db347d3e7c08647b6c1def4621b879a1eafd2d` |
+| `water-migrator.bin` 1.0.0 (production) | `f39237c35df52e206247e03da96429f511ae20eb9145d94b743286cd49cd9afa` |

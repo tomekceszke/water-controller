@@ -7,10 +7,9 @@ optional and must never weaken it.**
 
 ## Status
 
-- **Production** still runs the **legacy firmware** (ESP-IDF 5.1.1, snapshot `fcb43e8`, findings in `docs/INVENTORY.md`).
-  Its sources and local secrets live in `legacy/water-controller-5.1.1/` (gitignored).
-- **`firmware/`** holds the new firmware 3.x (ESP-IDF 5.4.2 + `home-idf`). It is not deployed yet: it needs the OTA
-  migrator (bootloader + partition table) rehearsed on the spare board first.
+- **Production runs firmware 3.1.0** (ESP-IDF 5.4.2 bootloader and partition table, migrated over the air on 2026-09-15 at 23:02, see `docs/IDF5_MIGRATION.md`).
+  - Updates from now on: `tools/build_release.sh`, publish `releases/water-controller.bin` as `water-controller.bin` on the OTA server, `POST /admin/su` (or the Device tab).
+- The legacy firmware (5.1.1, snapshot `fcb43e8`, findings in `docs/INVENTORY.md`) lives in `legacy/water-controller-5.1.1/` (gitignored) for reference.
 
 The plan is in `~/.claude/plans/cele-odnosnie-tego-projektu-rosy-moler.md`. Stages:
 - [x] 0 inventory
@@ -18,7 +17,7 @@ The plan is in `~/.claude/plans/cele-odnosnie-tego-projektu-rosy-moler.md`. Stag
 - [~] 2 firmware (built, not on hardware)
 - [x] 3 PWA
 - [x] 4 hc-data (deployed 2026-09-15, history imported; Grafana not done)
-- [~] 5 migration (rehearsed on the spare 2026-09-15, production pending)
+- [x] 5 migration (production 2026-09-15 23:02)
 - [x] 6 docs/portfolio (README, LICENSE, CI)
 - [ ] 7 anomaly model
 - [ ] 8 GCP shutdown
@@ -183,8 +182,8 @@ tools/dev_proxy.py <device-ip> --port 8765   # serves firmware/web/*.html locall
 
 ## TODO
 
-- [ ] Production migration to 3.x (`docs/IDF5_MIGRATION.md`), after the open questions are settled.
+- [x] Production migration to 3.1.0 (2026-09-15).
 - [ ] Off-host backups of hc-data dumps (`/var/backups/water`, `/var/backups/heating` live only on the CT disk): choose a location.
 - [ ] Bucket calibration after the migration (`docs/CALIBRATION.md`).
-- [ ] Stage 7 anomaly model; stage 8 GCP shutdown (2 weeks after the cutover).
+- [ ] Stage 7 anomaly model; stage 8 GCP shutdown (not before 2026-09-29).
 - [ ] Sibling projects: CI everywhere (gate: none, heating: not on GitHub yet), move them to home-idf.
