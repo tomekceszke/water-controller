@@ -138,7 +138,7 @@ from this history and feeding the thresholds back to Tier 2 is the next step.
 |---|---|
 | Controller | ESP32-WROOM-32 DevKit on a prototype board, sealed enclosure |
 | Flow meter | Termipol PM-3/4-B, DN20 brass, Hall sensor, open collector, 2–45 L/min ([datasheet](docs/datasheet-flow-meter-pm3-4-b.pdf)) |
-| Valve | DN20 ball valve with HP Control A80 4-wire 9-24 V DC actuator: contact closed = open, < 10 s travel, manual override ([wiring variants](docs/Wersje_sterowania_silownikow_A80_i_A82.pdf)) |
+| Valve | DN20 ball valve with HP Control A80 4-wire 9-24 V DC actuator: contact closed = open, < 10 s travel, manual override ([manual](docs/Manual_A80_4-wires_9-24VDC.pdf)) |
 | GPIO | 4 = meter (PCNT), 14 = valve, 32 = blue LED (flow), 33 = red LED (closed) |
 
 What the actuator does during a reset or power loss, and how that shapes the firmware: [docs/HARDWARE.md](docs/HARDWARE.md).
