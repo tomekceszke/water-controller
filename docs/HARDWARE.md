@@ -7,7 +7,7 @@
 | MCU | ESP32-WROOM-32 DevKit on a 7x9 cm prototype board |
 | Power | Screw terminal input, TO-220 regulator |
 | Flow meter | Termipol PM-3/4-B, DN20 brass, Hall sensor, NO open-collector output (10 mA), 5-18 VDC, 2-45 L/min, 477 pulses/L ±10 %; wires: black GND, red +, yellow signal ([datasheet](datasheet-flow-meter-pm3-4-b.pdf)) |
-| Valve | Motorised DN20 ball valve (blue actuator), single control line |
+| Valve | DN20 ball valve with an HP Control **A80 4-wire** actuator ([manual](Manual_A80_4-wires_230VAC.pdf), [wiring variants](Wersje_sterowania_silownikow_A80_i_A82.pdf)): power on red/black permanently, blue-green **shorted = open, open circuit = close**, < 10 s travel, limit switches, manual override |
 | Connectors | 3-pin JST for the meter and the valve |
 | Indicators | Blue LED (flow), red LED (valve closed) |
 | Spare | Identical board for development and destructive tests |
@@ -18,6 +18,33 @@
 | 14 | Valve control (HIGH = open) | MTMS strapping pin: outputs a signal during boot |
 | 32 | Blue LED | |
 | 33 | Red LED | |
+
+## What the actuator does on a reset (from the datasheet)
+
+The ESP32 switches the blue-green contact through the transistor on GPIO14 (HIGH = transistor on = contact closed = valve open).
+The actuator itself has no memory of commands: it drives towards whichever position the contact state means, and its
+limit switches stop it there.
+
+| Event | Contact | Actuator |
+|---|---|---|
+| Firmware drives GPIO14 HIGH | closed | opens (or stays open) |
+| Firmware drives GPIO14 LOW | open | closes (or stays closed) |
+| ESP32 reset / bootloader (GPIO14 not driven) | open, unless something pulls the base up | **starts closing** until the firmware drives the pin again |
+| ESP32 loses power, actuator still powered | open | **closes fully** (fail-safe) |
+| Both lose power | - | stays where it is |
+
+Consequences:
+- **Closed valve.** A reset never moves it.
+- **Open valve.** The reset window (about 0.56 s until `valve_restore()` in firmware 3.x, measured on the spare board)
+  lets the ball travel about 1/18 of its stroke towards closed, then back. A short flow dip; the state does not change.
+- **ESP32 power loss with the actuator still powered.** The valve closes. That is safe, but the firmware then restores "open" when it boots.
+- **Legacy firmware.** Its reset window was longer (WiFi + OTA check before GPIO init, seconds).
+
+To remove the movement completely:
+- A pull-up on the transistor base keeps "open" during reset, but then a closed valve would twitch open.
+- Only a latching element (bistable relay, or the A80 7-wire variant with position feedback) is glitch-free both ways.
+
+**Open question:** is the installed actuator the 230 V AC or the 9-24 V DC variant? With 230 V AC the blue-green contact may be at mains potential. Check before touching the enclosure.
 
 ## Checks before the ESP-IDF 5.4.2 firmware
 
