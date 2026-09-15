@@ -16,6 +16,9 @@ for pkg in mosquitto mosquitto-clients postgresql python3-venv; do
 done
 
 echo "== mosquitto (passwd/acl assembled from per-project fragments)"
+# Safety copy of the files as they were before the first fragment-based run
+[ -d /root/mosquitto-pre-fragments ] || { install -d -m 700 /root/mosquitto-pre-fragments &&
+    cp -a /etc/mosquitto/passwd /etc/mosquitto/acl /root/mosquitto-pre-fragments/ 2>/dev/null || true; }
 install -d -m 750 -o root -g mosquitto /etc/mosquitto/passwd.d /etc/mosquitto/acl.d
 # First run on a heating-only broker: keep heating's users and ACL as its own fragments
 if [ ! -f /etc/mosquitto/acl.d/heating.acl ] && [ -f /etc/mosquitto/acl ]; then
