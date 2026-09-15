@@ -16,7 +16,7 @@ The plan is in `~/.claude/plans/cele-odnosnie-tego-projektu-rosy-moler.md`. Stag
 - [x] 0 inventory
 - [x] 1 home-idf
 - [~] 2 firmware (built, not on hardware)
-- [ ] 3 PWA
+- [x] 3 PWA
 - [ ] 4 hc-data
 - [ ] 5 migration
 - [ ] 6 docs/portfolio
@@ -89,7 +89,7 @@ main/
   telemetry.c   MQTT to hc-data through its own queue and task (timestamps fixed once the clock syncs)
   api.c         routes on the home-idf HTTP server
   config/       config.h (committed), credentials.h (never committed)
-web/            login.html, app.html (placeholder until stage 3), manifest.webmanifest, apple-touch-icon.png
+web/            login.html (neutral), app.html (tabs Now/History/Protection/Device, vanilla, ~9.5 KB gzip), manifest, icon
 test/           host unit tests (tier1, rules)
 partitions.csv  ota_0 2M / ota_1 1.875M (legacy ota_1 offset kept for the migrator) / coredump
 ```
@@ -124,6 +124,15 @@ The broker is `mqtt://192.168.11.16:1883`, user `water-controller`, QoS 1. Topic
 | `water/<mac>/rule` | Tier 2 triggers |
 | `water/<mac>/alert` | alerts |
 | `water/<mac>/status` | retained `online` / `offline` (LWT) |
+
+### UI work
+
+```sh
+tools/dev_proxy.py <device-ip> --port 8765   # serves firmware/web/*.html locally, forwards /api and /admin to the device
+```
+- Language: English.
+- Design tokens are in `app.html` `:root`.
+- Opening the valve is a 1.2 s hold, closing is one tap.
 
 ## Legacy firmware (production until migration)
 

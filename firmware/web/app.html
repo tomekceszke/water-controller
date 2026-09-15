@@ -1,16 +1,561 @@
 <!doctype html>
-<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Water</title></head>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0f1e27">
+<meta name="color-scheme" content="dark">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Water">
+<link rel="icon" href="/apple-touch-icon.png">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<link rel="manifest" href="/manifest.webmanifest">
+<title>Water</title>
+<style>
+:root {
+  --deep: #0f1e27; --pipe: #162a35; --seam: #27465a; --foam: #e4eff3; --silt: #8aa9b6;
+  --water: #56c2e6; --brass: #f2a541; --alarm: #ff6f5e;
+  --round: ui-rounded, "SF Pro Rounded", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --text: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --gap: 20px;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; background: var(--deep); color: var(--foam); }
+body {
+  font: 16px/1.45 var(--text); -webkit-font-smoothing: antialiased; -webkit-tap-highlight-color: transparent;
+  padding: env(safe-area-inset-top) env(safe-area-inset-right) calc(76px + env(safe-area-inset-bottom)) env(safe-area-inset-left);
+  font-variant-numeric: tabular-nums;
+}
+main { max-width: 560px; margin: 0 auto; padding: 18px var(--gap) 0; }
+h1 { font: 600 30px/1.15 var(--round); margin: 8px 0 4px; letter-spacing: -.01em; }
+h2 { font: 600 20px/1.2 var(--round); margin: 32px 0 10px; }
+p { margin: 0; }
+.sub { color: var(--silt); min-height: 1.45em; }
+button { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--water); outline-offset: 3px; }
+[hidden] { display: none !important; }
+
+/* Hero: the pipe */
+.pipe { display: block; width: 100%; height: auto; margin: 26px 0 8px; overflow: visible; }
+.pipe .wall { fill: var(--pipe); stroke: var(--seam); stroke-width: 2; }
+.pipe .up, .pipe .down { fill: var(--water); opacity: .28; transition: opacity .6s; }
+.pipe .stream { stroke: var(--water); stroke-width: 3; stroke-linecap: round; stroke-dasharray: 2 16; opacity: 0; }
+.flowing .pipe .stream { opacity: 1; animation: run var(--speed, 1.6s) linear infinite; }
+.closed .pipe .down { opacity: 0; }
+.closed .pipe .stream.after { opacity: 0; }
+.pipe .body { fill: #1b3542; stroke: var(--seam); stroke-width: 2; }
+.pipe .ball { fill: #0c1a22; }
+.pipe .rotor, .pipe .handle { transition: transform .7s cubic-bezier(.3,.7,.2,1); transform-box: view-box; }
+.pipe .rotor { transform-origin: 180px 94px; }
+.pipe .handle { transform-origin: 180px 30px; }
+.closed .pipe .rotor { transform: rotate(90deg); }
+.closed .pipe .handle { transform: rotate(-90deg); }
+.pipe .bore { fill: var(--water); opacity: .7; }
+.closed .pipe .bore { fill: var(--brass); opacity: .95; }
+.pipe .stem { stroke: var(--seam); stroke-width: 8; }
+.pipe .lever { stroke: var(--silt); stroke-width: 12; stroke-linecap: round; }
+.pipe .hub { fill: var(--seam); }
+.closed .pipe .lever { stroke: var(--brass); }
+@keyframes run { to { stroke-dashoffset: -36; } }
+@media (prefers-reduced-motion: reduce) {
+  .flowing .pipe .stream { animation: none; }
+  .pipe .rotor, .pipe .handle { transition: none; }
+}
+
+/* Cutoff countdown */
+.cutoff { margin: 4px 0 0; }
+.cutoff .row { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; color: var(--silt); font-size: 15px; }
+.cutoff strong { color: var(--foam); font: 600 17px var(--round); }
+.track { height: 6px; border-radius: 3px; background: var(--pipe); margin-top: 8px; overflow: hidden; }
+.fill { height: 100%; width: 0; background: var(--water); border-radius: 3px; transition: width 1s linear, background .3s; }
+.fill.late { background: var(--brass); }
+
+.readings { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin: 22px 0 24px; }
+.readings div { min-width: 0; }
+.num { display: block; font: 600 34px/1 var(--round); letter-spacing: -.02em; }
+.unit { color: var(--silt); font-size: 14px; }
+
+/* Actions */
+.action {
+  position: relative; overflow: hidden; display: block; width: 100%; border: 0; border-radius: 16px;
+  padding: 18px 20px; font: 600 18px var(--round); cursor: pointer; touch-action: none; user-select: none;
+  -webkit-user-select: none; -webkit-touch-callout: none;
+}
+.shut { background: var(--brass); color: #1c1305; }
+.open { background: var(--pipe); color: var(--foam); box-shadow: inset 0 0 0 2px var(--seam); }
+.open .progress { position: absolute; inset: 0; width: 0; background: var(--water); opacity: .35; }
+.open.holding .progress { width: 100%; transition: width 1.2s linear; }
+.open span { position: relative; }
+.action:disabled { opacity: .5; }
+.hint { color: var(--silt); font-size: 14px; margin-top: 10px; }
+
+.banner { margin: 12px 0 0; padding: 12px 14px; border-radius: 12px; background: #3a1f1c; color: #ffd6d0; }
+.banner.info { background: var(--pipe); color: var(--foam); }
+
+/* Grouped lists */
+.list { background: var(--pipe); border-radius: 14px; margin: 0; padding: 0; list-style: none; }
+.list li { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 13px 16px; min-height: 52px; }
+.list li + li { border-top: 1px solid var(--seam); }
+.list .k { min-width: 0; }
+.list .k small { display: block; color: var(--silt); font-size: 13px; }
+.list .v { color: var(--silt); text-align: right; white-space: nowrap; }
+.rules li { display: block; }
+.rules .head { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+.rules p { color: var(--silt); font-size: 14px; margin-top: 6px; }
+.rules .rule-on { color: var(--foam); font-size: 15px; line-height: 2.4; }
+.rules li:not(.on) .rule-on, .rules li.on .rule-off { display: none; }
+.rules input[type=number] { width: 58px; padding: 5px 6px; margin: 0 3px; }
+.note { color: var(--silt); font-size: 14px; margin: 8px 4px 0; }
+
+/* Controls */
+.stepper { display: flex; align-items: center; gap: 6px; }
+.stepper button, .chip, .plain {
+  border: 0; border-radius: 10px; background: var(--seam); padding: 8px 12px; min-width: 40px; cursor: pointer;
+}
+.stepper output { min-width: 64px; text-align: center; font: 600 17px var(--round); }
+input[type=number] {
+  width: 84px; padding: 8px 10px; border-radius: 10px; border: 1px solid var(--seam); background: var(--deep);
+  color: var(--foam); font: 16px var(--text); text-align: right;
+}
+.switch { position: relative; width: 51px; height: 31px; flex: none; }
+.switch input { position: absolute; opacity: 0; inset: 0; margin: 0; cursor: pointer; }
+.switch i { position: absolute; inset: 0; border-radius: 16px; background: var(--seam); transition: background .2s; pointer-events: none; }
+.switch i::after { content: ""; position: absolute; top: 2px; left: 2px; width: 27px; height: 27px; border-radius: 50%; background: var(--foam); transition: transform .2s; }
+.switch input:checked + i { background: var(--water); }
+.switch input:checked + i::after { transform: translateX(20px); }
+.switch input:focus-visible + i { outline: 2px solid var(--water); outline-offset: 2px; }
+.chips { display: flex; gap: 8px; flex-wrap: wrap; }
+.chip[aria-pressed=true] { background: var(--water); color: var(--deep); }
+.plain { background: transparent; color: var(--water); padding: 8px 0; }
+.danger { color: var(--alarm); }
+
+/* History */
+.events { list-style: none; margin: 0; padding: 0; }
+.events li { display: grid; grid-template-columns: 58px 1fr auto; gap: 12px; padding: 12px 0; border-top: 1px solid var(--pipe); align-items: baseline; }
+.events time { color: var(--silt); font-size: 14px; }
+.events .what small { display: block; color: var(--silt); font-size: 13px; }
+.events .amt { font: 600 16px var(--round); }
+.events .shut-ev .what { color: var(--brass); }
+.events .alert-ev .what { color: var(--alarm); }
+.today { display: flex; gap: 28px; margin: 6px 0 4px; }
+
+/* Tab bar */
+nav {
+  position: fixed; left: 0; right: 0; bottom: 0; display: flex; justify-content: space-around;
+  padding: 6px 8px calc(6px + env(safe-area-inset-bottom)); background: rgba(15, 30, 39, .92);
+  border-top: 1px solid var(--pipe); -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px);
+}
+nav button { flex: 1; max-width: 120px; border: 0; background: none; color: var(--silt); padding: 6px 0; font-size: 12px; cursor: pointer; }
+nav button svg { display: block; margin: 0 auto 3px; width: 24px; height: 24px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+nav button[aria-current=page] { color: var(--water); }
+</style>
+</head>
 <body>
-<pre id="s"></pre>
-<button id="close">Close valve</button> <button id="open">Open valve</button> <button id="l">Log out</button>
+<main>
+  <section id="now" class="tab">
+    <h1 id="headline">Connecting…</h1>
+    <p class="sub" id="subline"></p>
+    <div id="banner" class="banner" role="status" hidden></div>
+
+    <svg class="pipe" viewBox="0 -24 360 174" aria-hidden="true">
+      <rect class="wall" x="1" y="72" width="358" height="44" rx="8"/>
+      <rect class="up" x="4" y="75" width="138" height="38" rx="5"/>
+      <rect class="down" x="218" y="75" width="138" height="38" rx="5"/>
+      <line class="stream" x1="14" y1="94" x2="136" y2="94"/>
+      <line class="stream after" x1="226" y1="94" x2="346" y2="94"/>
+      <rect class="body" x="138" y="58" width="84" height="72" rx="14"/>
+      <g class="rotor">
+        <circle class="ball" cx="180" cy="94" r="26"/>
+        <rect class="bore" x="154" y="85" width="52" height="18" rx="4"/>
+      </g>
+      <line class="stem" x1="180" y1="58" x2="180" y2="36"/>
+      <g class="handle"><line class="lever" x1="180" y1="30" x2="232" y2="30"/><circle class="hub" cx="180" cy="30" r="9"/></g>
+    </svg>
+
+    <div class="cutoff" id="cutoff" hidden>
+      <div class="row"><span>Shuts off in <strong id="remaining">–</strong></span><span id="limitText"></span></div>
+      <div class="track"><div class="fill" id="fill"></div></div>
+    </div>
+
+    <div class="readings">
+      <div><span class="num" id="lpm">0</span><span class="unit">L/min</span></div>
+      <div><span class="num" id="liters">0</span><span class="unit" id="litersUnit">L this flow</span></div>
+      <div><span class="num" id="today">0</span><span class="unit">L today</span></div>
+    </div>
+
+    <button class="action shut" id="shutBtn" type="button">Shut off water</button>
+    <button class="action open" id="openBtn" type="button" hidden><i class="progress"></i><span>Hold to turn water on</span></button>
+    <p class="hint" id="actionHint"></p>
+
+    <h2 id="latestTitle" hidden>Latest</h2>
+    <ul class="events" id="latest"></ul>
+  </section>
+
+  <section id="history" class="tab" hidden>
+    <h1>History</h1>
+    <div class="today">
+      <div><span class="num" id="hToday">0</span><span class="unit">L today</span></div>
+      <div><span class="num" id="hFlows">0</span><span class="unit">flows since restart</span></div>
+    </div>
+    <ul class="events" id="events"></ul>
+    <p class="note" id="eventsEmpty" hidden>Nothing has happened since the controller restarted.</p>
+  </section>
+
+  <section id="protection" class="tab" hidden>
+    <h1>Protection</h1>
+    <h2>Shut-off limit</h2>
+    <ul class="list">
+      <li>
+        <div class="k">Continuous flow<small>Always on, works without Wi-Fi</small></div>
+        <div class="stepper">
+          <button type="button" data-step="-1" aria-label="Shorter">−</button>
+          <output id="limitOut">20 min</output>
+          <button type="button" data-step="1" aria-label="Longer">+</button>
+        </div>
+      </li>
+    </ul>
+    <p class="note">The valve closes when water runs without a break for longer than this.</p>
+
+    <h2>Smart rules</h2>
+    <ul class="list rules" id="rules">
+      <li><div class="head"><span>Too much in one go</span><label class="switch"><input type="checkbox" data-toggle="max_event_liters" aria-label="Too much in one go"><i></i></label></div>
+        <p class="rule-off">Shuts off when a single flow uses a lot of water.</p>
+        <p class="rule-on">Shut off after <input type="number" min="1" max="10000" data-rule="max_event_liters" aria-label="Liters"> liters in one flow</p></li>
+      <li><div class="head"><span>Burst pipe</span><label class="switch"><input type="checkbox" data-toggle="burst_s" aria-label="Burst pipe"><i></i></label></div>
+        <p class="rule-off">Shuts off when water pours out faster than any tap.</p>
+        <p class="rule-on">Shut off above <input type="number" min="1" max="60" data-rule="burst_lpm" aria-label="Liters per minute"> L/min for <input type="number" min="5" max="3600" data-rule="burst_s" aria-label="Seconds"> s</p></li>
+      <li><div class="head"><span>Night</span><label class="switch"><input type="checkbox" data-toggle="night_max_liters" aria-label="Night"><i></i></label></div>
+        <p class="rule-off" id="nightOff">Shuts off when water runs while everyone sleeps.</p>
+        <p class="rule-on">Shut off after <input type="number" min="1" max="10000" data-rule="night_max_liters" aria-label="Liters at night"> liters between <span id="nightHours">0:00 and 5:00</span></p></li>
+      <li><div class="head"><span>Dripping leak</span><label class="switch"><input type="checkbox" data-toggle="leak_notify_min" aria-label="Dripping leak"><i></i></label></div>
+        <p class="rule-off">Sends a notification when water never stops completely.</p>
+        <p class="rule-on">Notify when water runs every minute for <input type="number" min="10" max="1440" data-rule="leak_notify_min" aria-label="Minutes"> min</p></li>
+      <li><div class="head"><span>Away from home</span><label class="switch"><input type="checkbox" data-toggle="vacation" aria-label="Away from home"><i></i></label></div>
+        <p class="rule-off">Turn on when nobody is home. Stays on while rules are paused.</p>
+        <p class="rule-on">Shut off after <input type="number" min="1" max="10000" data-rule="vacation_max_liters" aria-label="Liters when away"> liters</p></li>
+    </ul>
+    <p class="note" id="snoozeNote">Watering the garden? Pause the smart rules for a while. The shut-off limit stays on.</p>
+    <div class="chips" style="margin:10px 4px 0">
+      <button class="chip" type="button" data-snooze="30">30 min</button>
+      <button class="chip" type="button" data-snooze="120">2 hours</button>
+      <button class="chip" type="button" data-snooze="0" id="snoozeCancel" hidden>Resume rules</button>
+    </div>
+
+    <h2>Flow meter</h2>
+    <ul class="list">
+      <li><div class="k">Pulses per liter<small>From the bucket test</small></div>
+        <input type="number" min="300" max="700" id="ppl" aria-label="Pulses per liter"></li>
+      <li><div class="k">Signal check<small id="diagText">Counts pulses and noise for 10 minutes</small></div>
+        <button class="plain" type="button" id="diagBtn">Start</button></li>
+    </ul>
+  </section>
+
+  <section id="device" class="tab" hidden>
+    <h1>Device</h1>
+    <h2>Status</h2>
+    <ul class="list" id="deviceList"></ul>
+    <h2>Maintenance</h2>
+    <ul class="list">
+      <li><div class="k">Firmware update<small id="otaText">Installs a new version if one is published</small></div><button class="plain" type="button" id="otaBtn">Check</button></li>
+      <li><div class="k">Restart<small>The valve keeps its position</small></div><button class="plain" type="button" id="rebootBtn">Restart</button></li>
+      <li><div class="k">Sign out</div><button class="plain danger" type="button" id="logoutBtn">Sign out</button></li>
+    </ul>
+  </section>
+</main>
+
+<nav aria-label="Sections">
+  <button type="button" data-tab="now" aria-current="page"><svg viewBox="0 0 24 24"><path d="M12 3s6 6.4 6 11a6 6 0 0 1-12 0c0-4.6 6-11 6-11z"/></svg>Now</button>
+  <button type="button" data-tab="history"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></svg>History</button>
+  <button type="button" data-tab="protection"><svg viewBox="0 0 24 24"><path d="M12 3l7 3v5.5c0 4.4-3 7.8-7 9.5-4-1.7-7-5.1-7-9.5V6z"/></svg>Protection</button>
+  <button type="button" data-tab="device"><svg viewBox="0 0 24 24"><rect x="5" y="5" width="14" height="14" rx="2"/><path d="M9 2v3M15 2v3M9 19v3M15 19v3M2 9h3M2 15h3M19 9h3M19 15h3"/></svg>Device</button>
+</nav>
+
 <script>
-let csrf = '';
-const api = (path, body) => fetch(path, body === undefined ? {cache: 'no-store'} : {method: 'POST', cache: 'no-store',
-  headers: {'Content-Type': 'application/json', 'X-CSRF-Token': csrf}, body: JSON.stringify(body)});
-const refresh = async () => { document.getElementById('s').textContent = JSON.stringify(await (await api('/api/status')).json(), null, 2); };
-(async () => { csrf = (await (await api('/api/session')).json()).csrf; refresh(); setInterval(refresh, 2000); })();
-document.getElementById('close').onclick = () => api('/api/valve', {state: 'closed'}).then(refresh);
-document.getElementById('open').onclick = () => confirm('Open the water valve?') && api('/api/valve', {state: 'open'}).then(refresh);
-document.getElementById('l').onclick = async () => { await api('/api/logout', {}); location.reload(); };
+"use strict";
+const $ = id => document.getElementById(id);
+let csrf = "";
+let state = null;
+let timer = 0;
+let tab = "now";
+
+const fmtL = v => v < 10 ? v.toFixed(1) : Math.round(v).toLocaleString("en");
+const fmtDur = s => {
+  s = Math.max(0, Math.round(s));
+  const h = Math.floor(s / 3600), m = Math.floor(s % 3600 / 60), r = s % 60;
+  return h ? `${h}:${String(m).padStart(2, "0")}:${String(r).padStart(2, "0")}` : `${m}:${String(r).padStart(2, "0")}`;
+};
+const fmtMin = s => s % 3600 === 0 ? `${s / 3600} h` : `${Math.round(s / 60)} min`;
+const clock = ts => ts ? new Date(ts * 1000).toLocaleTimeString([], {hour: "2-digit", minute: "2-digit"}) : "–";
+const ago = ts => {
+  if (!ts) return "";
+  const d = Math.round(Date.now() / 1000 - ts);
+  if (d < 90) return "just now";
+  if (d < 5400) return `${Math.round(d / 60)} min ago`;
+  if (d < 86400 * 2) return `at ${clock(ts)}`;
+  return new Date(ts * 1000).toLocaleDateString([], {day: "numeric", month: "short"});
+};
+const defaults = {max_event_liters: 300, burst_lpm: 40, burst_s: 60, night_max_liters: 20, leak_notify_min: 120, vacation_max_liters: 5};
+const reasons = {tier1: "the shut-off limit", tier2: "a smart rule", user: "you", admin: "a script", restore: "restart"};
+const ruleNames = {max_volume: "too much in one go", burst: "burst pipe", night: "night use", vacation: "away from home", leak: "dripping leak"};
+// Firmware details use rule ids ("max_volume 5 L"): show words instead
+const humanize = text => (text || "").replace(/^closed, /, "").replace(/\b(max_volume|burst|night|vacation|leak)\b/, id => ruleNames[id]);
+const fmtUptime = s => s < 3600 ? `${Math.round(s / 60)} min` : s < 172800 ? `${Math.round(s / 3600)} h` : `${Math.round(s / 86400)} days`;
+
+async function api(path, body) {
+  const opts = body === undefined ? {cache: "no-store"} : {
+    method: "POST", cache: "no-store", body: JSON.stringify(body),
+    headers: {"Content-Type": "application/json", "X-CSRF-Token": csrf},
+  };
+  const r = await fetch(path, opts);
+  if (r.status === 401) { location.reload(); throw new Error("signed out"); }
+  const data = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(data.error || `HTTP ${r.status}`);
+  return data;
+}
+
+function banner(text, info) {
+  const b = $("banner");
+  b.hidden = !text;
+  b.textContent = text || "";
+  b.classList.toggle("info", !!info);
+}
+
+function renderNow(s) {
+  const closed = s.valve.state === "closed";
+  const f = s.flow;
+  document.body.classList.toggle("closed", closed);
+  document.body.classList.toggle("flowing", f.flowing);
+  document.body.style.setProperty("--speed", `${Math.max(.35, Math.min(2.4, 12 / Math.max(f.lpm, 1)))}s`);
+
+  if (closed && f.flowing) {
+    $("headline").textContent = "Valve closed, water still flowing";
+    $("subline").textContent = "Check the valve and the pipes before the meter.";
+  } else if (closed) {
+    $("headline").textContent = "Water is off";
+    const by = reasons[s.valve.reason] || s.valve.reason;
+    $("subline").textContent = `Shut off by ${by}${s.valve.detail && s.valve.reason !== "user" ? ` (${humanize(s.valve.detail)})` : ""} ${ago(s.valve.changed_at)}`.trim();
+  } else if (f.flowing) {
+    $("headline").textContent = "Water is running";
+    $("subline").textContent = `For ${fmtDur(f.seconds)}`;
+  } else {
+    $("headline").textContent = "No water running";
+    $("subline").textContent = s.valve.changed_at ? `Valve opened ${ago(s.valve.changed_at)}` : "Valve open";
+  }
+
+  const showCutoff = f.flowing && !closed;
+  $("cutoff").hidden = !showCutoff;
+  if (showCutoff) {
+    const done = 1 - f.tier1_remaining_s / f.tier1_limit_s;
+    $("remaining").textContent = fmtDur(f.tier1_remaining_s);
+    $("limitText").textContent = `limit ${fmtMin(f.tier1_limit_s)}`;
+    $("fill").style.width = `${Math.min(100, done * 100)}%`;
+    $("fill").classList.toggle("late", f.tier1_remaining_s < f.tier1_limit_s * .2);
+  }
+  $("lpm").textContent = f.flowing ? f.lpm.toFixed(1) : "0";
+  $("liters").textContent = fmtL(f.liters);
+  $("litersUnit").textContent = f.flowing ? "L this flow" : "L last flow";
+  $("today").textContent = fmtL(s.usage.liters_today);
+
+  $("shutBtn").hidden = closed;
+  $("openBtn").hidden = !closed;
+  const snooze = s.tier2.snooze_left_s;
+  $("actionHint").textContent = closed ? "Hold the button until it fills. Make sure no tap is left open."
+    : snooze ? `Smart rules paused for ${fmtDur(snooze)}` : "";
+
+  if (!s.flow.tier1_alive) banner("Flow monitoring is not responding. The controller will restart itself.");
+  else if (s.system.pending_verify) banner("New firmware is being checked. It rolls back on its own if something is wrong.", true);
+  else banner("");
+}
+
+function renderProtection(s) {
+  const st = s.settings;
+  if (!document.activeElement || !document.activeElement.closest("#protection")) {
+    $("limitOut").textContent = fmtMin(st.tier1_limit_s);
+    document.querySelectorAll("[data-rule]").forEach(el => { el.value = st[el.dataset.rule]; });
+    for (const el of document.querySelectorAll("[data-toggle]")) {
+      el.checked = el.dataset.toggle === "vacation" ? st.vacation : st[el.dataset.toggle] > 0;
+      el.closest("li").classList.toggle("on", el.checked);
+    }
+    document.querySelectorAll("[data-rule]").forEach(el => { if (!Number(el.value)) el.value = defaults[el.dataset.rule] || ""; });
+    $("ppl").value = st.pulses_per_liter;
+  }
+  $("nightHours").textContent = `${st.night_start_h}:00 and ${st.night_end_h}:00`;
+  const snooze = s.tier2.snooze_left_s;
+  $("snoozeCancel").hidden = !snooze;
+  $("snoozeNote").textContent = snooze ? `Smart rules paused for ${fmtDur(snooze)}. The shut-off limit stays on.`
+    : "Watering the garden? Pause the smart rules for a while. The shut-off limit stays on.";
+  const d = s.diag;
+  $("diagBtn").textContent = d.running ? "Stop" : "Start";
+  $("diagText").textContent = d.running || d.edges
+    ? `${d.edges} pulses, shortest gap ${d.min_interval_us ? (d.min_interval_us / 1000).toFixed(1) + " ms" : "–"}, ${d.short_intervals} noise spikes${d.running ? `, ${fmtDur(d.left_s)} left` : ""}`
+    : "Counts pulses and noise for 10 minutes";
+}
+
+function renderDevice(s) {
+  const sys = s.system, t = s.telemetry;
+  const rows = [
+    ["Version", `${sys.version}`, `ESP-IDF ${sys.idf}, ${sys.partition}`],
+    ["Running", fmtUptime(sys.uptime_s), sys.up_since ? `since ${sys.up_since}` : "clock not set yet"],
+    ["Wi-Fi", sys.wifi.connected ? `${sys.wifi.rssi} dBm` : "offline", sys.wifi.connected ? `channel ${sys.wifi.channel}` : ""],
+    ["History upload", !t.enabled ? "off" : t.connected ? "connected" : "waiting", t.dropped ? `${t.dropped} readings dropped` : ""],
+    ["Memory free", `${sys.heap_kb.free} KB`, `lowest ${sys.heap_kb.min} KB`],
+    ["Last restart", sys.reset_reason, ""],
+  ];
+  $("deviceList").replaceChildren(...rows.map(([k, v, small]) => {
+    const li = document.createElement("li");
+    const kd = document.createElement("div"); kd.className = "k"; kd.textContent = k;
+    if (small) { const sm = document.createElement("small"); sm.textContent = small; kd.append(sm); }
+    const vd = document.createElement("div"); vd.className = "v"; vd.textContent = v;
+    li.append(kd, vd);
+    return li;
+  }));
+  $("otaText").textContent = sys.ota_running ? "Checking for a new version…" : "Installs a new version if one is published";
+  $("otaBtn").disabled = sys.ota_running;
+}
+
+async function refresh() {
+  clearTimeout(timer);
+  try {
+    state = await api("/api/status");
+    renderNow(state);
+    renderProtection(state);
+    const marker = state.usage.flows_since_boot * 1000 + (state.valve.changed_at % 1000) + (state.tier2.last_rule_at % 7);
+    if (marker !== eventsSeen) { eventsSeen = marker; loadEvents(); }
+    if (tab === "device") renderDevice(state);
+    if (tab === "history") { $("hToday").textContent = fmtL(state.usage.liters_today); $("hFlows").textContent = state.usage.flows_since_boot; }
+  } catch (e) {
+    if (e.message !== "signed out") banner("Can’t reach the controller. Retrying…");
+  }
+  if (!document.hidden) timer = setTimeout(refresh, state && state.flow.flowing ? 1000 : 3000);
+}
+
+function eventItems(events) {
+  return events.map(e => {
+      const li = document.createElement("li");
+      const time = document.createElement("time"); time.textContent = clock(e.ts);
+      const what = document.createElement("div"); what.className = "what";
+      const amt = document.createElement("div"); amt.className = "amt";
+      const small = document.createElement("small");
+      if (e.type === "flow") {
+        what.textContent = e.closed ? "Flow, stopped by shut-off" : "Water used";
+        small.textContent = `${fmtDur(e.seconds)}, up to ${e.max_lpm.toFixed(1)} L/min`;
+        amt.textContent = `${fmtL(e.liters)} L`;
+      } else if (e.type === "valve") {
+        li.className = e.state === "closed" ? "shut-ev" : "";
+        what.textContent = e.state === "closed" ? "Water shut off" : "Water turned on";
+        small.textContent = `by ${reasons[e.reason] || e.reason}${e.detail && e.reason !== "user" ? `: ${humanize(e.detail)}` : ""}`;
+      } else if (e.type === "rule") {
+        li.className = e.closed ? "shut-ev" : "alert-ev";
+        what.textContent = e.closed ? `Rule: ${ruleNames[e.rule] || e.rule}` : `Possible ${ruleNames[e.rule] || e.rule}`;
+        small.textContent = humanize(e.detail);
+      } else {
+        li.className = "alert-ev";
+        what.textContent = "Water flowing with the valve closed";
+        small.textContent = humanize(e.detail);
+      }
+      what.append(small);
+      li.append(time, what, amt);
+      return li;
+  });
+}
+
+let eventsSeen = -1;
+async function loadEvents() {
+  try {
+    const {events} = await api("/api/events");
+    $("eventsEmpty").hidden = events.length > 0;
+    $("events").replaceChildren(...eventItems(events));
+    $("latest").replaceChildren(...eventItems(events.slice(0, 3)));
+    $("latestTitle").hidden = events.length === 0;
+  } catch (e) { /* the status banner already reports connectivity */ }
+}
+
+function show(name) {
+  tab = name;
+  document.querySelectorAll(".tab").forEach(t => { t.hidden = t.id !== name; });
+  document.querySelectorAll("nav button").forEach(b => {
+    if (b.dataset.tab === name) b.setAttribute("aria-current", "page");
+    else b.removeAttribute("aria-current");
+  });
+  window.scrollTo(0, 0);
+  if (name === "history") loadEvents();
+  refresh();
+}
+document.querySelectorAll("nav button").forEach(b => b.addEventListener("click", () => show(b.dataset.tab)));
+
+async function setValve(stateName) {
+  try { state = await api("/api/valve", {state: stateName}); renderNow(state); }
+  catch (e) { banner(`The valve did not change: ${e.message}`); }
+}
+$("shutBtn").addEventListener("click", () => setValve("closed"));
+
+// Turning water on is deliberate: hold for 1.2 s (touch, mouse or keyboard)
+const openBtn = $("openBtn");
+let holdTimer = 0;
+const startHold = e => {
+  if (e.type === "keydown" && e.key !== " " && e.key !== "Enter") return;
+  if (e.repeat || holdTimer) return;
+  e.preventDefault();
+  openBtn.classList.add("holding");
+  holdTimer = setTimeout(() => { holdTimer = 0; openBtn.classList.remove("holding"); setValve("open"); }, 1200);
+};
+const endHold = () => { clearTimeout(holdTimer); holdTimer = 0; openBtn.classList.remove("holding"); };
+openBtn.addEventListener("pointerdown", startHold);
+openBtn.addEventListener("keydown", startHold);
+["pointerup", "pointerleave", "pointercancel", "keyup", "blur"].forEach(t => openBtn.addEventListener(t, endHold));
+openBtn.addEventListener("contextmenu", e => e.preventDefault());
+
+async function saveSettings(patch) {
+  try { state = await api("/api/settings", patch); renderProtection(state); renderNow(state); }
+  catch (e) { banner(`Settings not saved: ${e.message}`); }
+}
+const limitSteps = [60, 120, 300, 600, 900, 1200, 1800, 2700, 3600, 5400, 7200, 10800, 14400];
+document.querySelectorAll("[data-step]").forEach(b => b.addEventListener("click", () => {
+  const cur = state.settings.tier1_limit_s;
+  const dir = Number(b.dataset.step);
+  const next = dir > 0 ? limitSteps.find(v => v > cur) : [...limitSteps].reverse().find(v => v < cur);
+  if (next) { $("limitOut").textContent = fmtMin(next); saveSettings({tier1_limit_s: next}); }
+}));
+document.querySelectorAll("[data-toggle]").forEach(el => el.addEventListener("change", () => {
+  const key = el.dataset.toggle;
+  if (key === "vacation") return saveSettings({vacation: el.checked});
+  const input = document.querySelector(`[data-rule="${key}"]`);
+  const value = el.checked ? (Number(input.value) || defaults[key]) : 0;
+  el.closest("li").classList.toggle("on", el.checked);
+  saveSettings({[key]: value});
+}));
+document.querySelectorAll("[data-rule]").forEach(el => el.addEventListener("change", () => {
+  const key = el.dataset.rule;
+  const toggle = document.querySelector(`[data-toggle="${key}"]`);
+  // Changing a value of a rule that is off only stores it once the rule is switched on
+  if (toggle && !toggle.checked && key !== "vacation_max_liters" && key !== "burst_lpm") return;
+  saveSettings({[key]: Number(el.value)});
+}));
+$("ppl").addEventListener("change", () => saveSettings({pulses_per_liter: Number($("ppl").value)}));
+document.querySelectorAll("[data-snooze]").forEach(b => b.addEventListener("click", async () => {
+  try { state = await api("/api/snooze", {minutes: Number(b.dataset.snooze)}); renderProtection(state); renderNow(state); }
+  catch (e) { banner(`Rules not paused: ${e.message}`); }
+}));
+$("diagBtn").addEventListener("click", async () => {
+  try { state = await api("/api/diag", {minutes: state.diag.running ? 0 : 10}); renderProtection(state); }
+  catch (e) { banner(`Signal check not started: ${e.message}`); }
+});
+$("otaBtn").addEventListener("click", () => api("/api/ota", {}).then(refresh, e => banner(`Update check not started: ${e.message}`)));
+$("rebootBtn").addEventListener("click", async () => {
+  if (!confirm("Restart the controller? The valve keeps its position.")) return;
+  try { await api("/api/reboot", {}); banner("Restarting…", true); setTimeout(refresh, 8000); }
+  catch (e) { banner(`Restart failed: ${e.message}`); }
+});
+$("logoutBtn").addEventListener("click", async () => { try { await api("/api/logout", {}); } finally { location.reload(); } });
+
+document.addEventListener("visibilitychange", () => { if (!document.hidden) refresh(); });
+
+(async () => {
+  try { csrf = (await api("/api/session")).csrf; } catch (e) { banner("Can’t reach the controller. Retrying…"); }
+  refresh();
+})();
 </script>
-</body></html>
+</body>
+</html>

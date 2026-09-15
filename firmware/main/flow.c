@@ -172,7 +172,7 @@ static void flow_task(void *arg)
             if (closed_flow_since_ms == 0) closed_flow_since_ms = now_ms;
             if (!alert_sent && now_ms - closed_flow_since_ms > VALVE_CLOSING_S * 1000) {
                 event_t e = {.type = EV_ALERT, .mono_ms = now_ms};
-                snprintf(e.detail, sizeof(e.detail), "closed, %u.%u L/min",
+                snprintf(e.detail, sizeof(e.detail), "%u.%u L/min",
                          (unsigned) ((lpm_x10 / 10) % 1000), (unsigned) (lpm_x10 % 10));
                 events_publish(&e);
                 alert_sent = true;
