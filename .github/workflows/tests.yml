@@ -1,0 +1,23 @@
+name: tests
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  protection-logic:
+    name: Tier 1 / Tier 2 host tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: cmake -S firmware/test -B build-test && cmake --build build-test && ctest --test-dir build-test --output-on-failure
+
+  ingest:
+    name: MQTT payload validation
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install paho-mqtt==2.1.* && python -m unittest server/ingest/test_wc_ingest.py
