@@ -5,7 +5,7 @@
 | Part | Details |
 |---|---|
 | MCU | ESP32-WROOM-32 DevKit on a 7x9 cm prototype board |
-| Power | Screw terminal input (DC, shared with the actuator), TO-220 regulator |
+| Power | Screw terminal input, TO-220 regulator (whether the actuator shares this supply is not verified) |
 | Flow meter | Termipol PM-3/4-B, DN20 brass, Hall sensor, NO open-collector output (10 mA), 5-18 VDC, 2-45 L/min, 477 pulses/L ±10 %; wires: black GND, red +, yellow signal ([datasheet](datasheet-flow-meter-pm3-4-b.pdf)) |
 | Valve | DN20 ball valve with an HP Control **A80 4-wire, 9-24 V DC** actuator: red `+` / black `-` powered permanently, blue-green **shorted = open, open circuit = close**, < 10 s travel, limit switches cut the current at rest, manual override with a 5 mm hex key. Wiring of all A80/A82 variants: [Wersje_sterowania_silownikow_A80_i_A82.pdf](Wersje_sterowania_silownikow_A80_i_A82.pdf). Mechanics of the A80 4-wire (same actuator, 230 V AC supply): [Manual_A80_4-wires_230VAC.pdf](Manual_A80_4-wires_230VAC.pdf). Dedicated 9-24 V DC manual: [hpcontrol.de](https://hpcontrol.de/katalog/ONLINE-HPCONTROL/WEB/Electric_Actuators/Manual_A83_4-wires_9-24VDC.pdf) |
 | Connectors | 3-pin JST for the meter and the valve |
