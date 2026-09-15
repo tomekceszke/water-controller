@@ -1,6 +1,6 @@
 dependencies:
   home-idf:
-    component_hash: ea9f2d1458419c4f4c83f5c49469f8e6ec309db67ec7fdbd423e8a13bca2d374
+    component_hash: 7e3c0c290516206167d243b899d3f306e43cbde8ebf7a1ac4e66f423077bdcaa
     dependencies:
     - name: idf
       version: '>=5.4'
@@ -10,7 +10,7 @@ dependencies:
       type: git
     targets:
     - esp32
-    version: 0e0543d57d2b1a9a9e6e0bced3f7454fa264ff1c
+    version: 16f7705f23cf50b73bdc9618965b291e448b51ff
   idf:
     source:
       type: idf
