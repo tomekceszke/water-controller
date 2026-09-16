@@ -16,7 +16,8 @@ idf_component_register(
     EMBED_TXTFILES ${project_dir}/certs/ota_server_cert_15.pem ${project_dir}/web/manifest.webmanifest
     EMBED_FILES ${project_dir}/web/apple-touch-icon.png)
 
-home_idf_embed_gzip(${COMPONENT_LIB} ${project_dir}/web/login.html ${project_dir}/web/app.html)
+home_idf_login_page(${COMPONENT_LIB} NAME "w-controller" ACCENT "#56c2e6")
+home_idf_embed_gzip(${COMPONENT_LIB} ${project_dir}/web/app.html)
 
 # Rollback rehearsal only: idf.py -B build-panic -DWATER_TEST_PANIC=1 build (never ship)
 if(WATER_TEST_PANIC)

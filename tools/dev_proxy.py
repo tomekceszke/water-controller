@@ -15,6 +15,8 @@ ap.add_argument("device")
 ap.add_argument("--port", type=int, default=8080)
 args = ap.parse_args()
 WEB = pathlib.Path(__file__).resolve().parent.parent / "firmware" / "web"
+# The sign-in page comes from home-idf and is rendered with the device name and accent at build time.
+LOGIN = WEB.parent / "build" / "esp-idf" / "main" / "login_page" / "login.html"
 TYPES = {".png": "image/png", ".webmanifest": "application/manifest+json"}
 
 
@@ -49,7 +51,9 @@ class Proxy(http.server.BaseHTTPRequestHandler):
         conn = http.client.HTTPConnection(args.device, 80, timeout=10)
         conn.request("GET", "/api/session", headers={"Host": args.device, "Cookie": self.headers.get("Cookie", "")})
         authenticated = b'"authenticated":true' in conn.getresponse().read()
-        page = WEB / ("app.html" if authenticated else "login.html")
+        page = WEB / "app.html" if authenticated else LOGIN
+        if not page.exists():
+            raise SystemExit(f"{page} is missing: run firmware/build.sh once, the sign-in page is rendered there")
         self.static(page.read_bytes(), "text/html; charset=utf-8")
 
     def do_POST(self):

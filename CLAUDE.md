@@ -97,7 +97,8 @@ main/
   telemetry.c   MQTT to hc-data through its own queue and task (timestamps fixed once the clock syncs)
   api.c         routes on the home-idf HTTP server
   config/       config.h (committed), credentials.h (never committed)
-web/            login.html (neutral), app.html (tabs Now/History/Protection/Device, vanilla, ~9.5 KB gzip), manifest, icon
+web/            app.html (tabs Now/History/Protection/Device, vanilla, ~9.5 KB gzip), manifest, icon
+                (the sign-in page comes from home-idf: home_idf_login_page() in main/CMakeLists.txt)
 test/           host unit tests (tier0, tier1, rules)
 migrator/       one-shot OTA image (home-idf hi_migrator); build with tools/build_release.sh [--spare]
 partitions.csv  ota_0 2M / ota_1 1.875M (legacy ota_1 offset kept for the migrator) / coredump
@@ -202,9 +203,12 @@ tools/dev_proxy.py <device-ip> --port 8765   # serves firmware/web/*.html locall
   - a dripping-leak rule event shows "0 L, 0 L/min" (firmware sends the current flow, which is zero between drips);
   - flow durations like "20:10" read like a clock time;
   - regenerate README screenshots after UI changes (`docs/img/app-*.png`, rendered with mocked API data via Playwright).
-- [ ] **Unified sign-in page for all projects, moved to home-idf** (owner request 2026-09-15):
-  - one template in home-idf (`web/login.html` + a CMake helper like `home_idf_login_page(<lib> NAME "w-controller" ACCENT "#56c2e6")`) gzipped at build time and served by `hi_httpd` when an app does not provide its own;
-  - same look as water-controller's current page (name centred, higher up), device name only, nothing else about the device;
-  - adopt in water-controller first, then gate (`g-controller`), heating and floor-heating when they move to home-idf.
+- [~] **Unified sign-in page for all projects, moved to home-idf** (owner request 2026-09-15):
+  - done in home-idf 0.1.6: `web/login.html` + `home_idf_login_page(<lib> NAME "w-controller" ACCENT "#56c2e6" [ICONS ON|OFF])`,
+    rendered and gzipped at build time under the symbols `hi_httpd` already reads; water-controller uses it and no
+    longer has its own `web/login.html`;
+  - design (owner picked it on 2026-09-16 from mocks): left-aligned wordmark split on the name's first hyphen,
+    accent `W-` at 1.45x over `controller`, no subtitle, field and button both 58 px with a 20 px gap;
+  - still to do: gate (`g-controller`), heating and floor-heating when they move to home-idf.
 - [ ] Stage 7 anomaly model; stage 8 GCP shutdown (not before 2026-09-29).
 - [ ] Sibling projects: CI everywhere (gate: none, heating: not on GitHub yet), move them to home-idf.
