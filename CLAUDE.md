@@ -191,10 +191,12 @@ tools/dev_proxy.py <device-ip> --port 8765   # serves firmware/web/*.html locall
   4. Close the tap, open the valve in the app (hold), check that water flows again.
   5. Afterwards read `flow_event` / `alert_event` for device `30aea40aba44` in hc-data: liters that passed while closed.
   - 2026-09-15 test was inconclusive: closed 23:10:02, opened 23:10:11 (9 s, shorter than the travel), no water flowing.
-- [ ] **2026-09-16: calibration check** (owner):
-  - First production flow: Grohe Rapid SL full flush measured **7.59 L** (3620 pulses at 477/L, 57 s, 8.0 L/min).
-  - Check the cistern's full-flush setting (6 / 7.5 / 9 L?). With 7.5 L the factor 477 is right (~1 %). With 6 L it would be ~600, outside the ±10 % datasheet tolerance.
-  - Confirm with the bucket test (`docs/CALIBRATION.md`); change the factor in the app (Protection → Pulses per liter).
+- [x] **Calibration against the house water meter** (2026-09-16, three runs, `docs/CALIBRATION.md`).
+  - Measured 366 pulses/L at 5 L/min, 408 at 9.8, 425 at 13.4: the meter under-reads at low flow and sits below the
+    datasheet's 477 ±10 %. Factor set to **410** (the value at 8-11 L/min, where most household draw happens); 477 was
+    under-reporting volume by ~14 %.
+  - Settles the cistern question: the Grohe full flush is 3620 pulses = 8.8 L, so it is set to 9 L.
+  - `PULSES_PER_LITER_DEFAULT` in `config.h` is now 410; it only reaches the device with the next OTA release.
 - [ ] **UI polish** (owner wants another round), noted so far:
   - a dripping-leak rule event shows "0 L, 0 L/min" (firmware sends the current flow, which is zero between drips);
   - flow durations like "20:10" read like a clock time;

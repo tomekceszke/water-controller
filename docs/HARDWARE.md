@@ -6,7 +6,7 @@
 |---|---|
 | MCU | ESP32-WROOM-32 DevKit on a 7x9 cm prototype board |
 | Power | Screw terminal input, TO-220 regulator (whether the actuator shares this supply is not verified) |
-| Flow meter | Termipol PM-3/4-B, DN20 brass, Hall sensor, NO open-collector output (10 mA), 5-18 VDC, 2-45 L/min, 477 pulses/L ±10 %; wires: black GND, red +, yellow signal ([datasheet](datasheet-flow-meter-pm3-4-b.pdf)) |
+| Flow meter | Termipol PM-3/4-B, DN20 brass, Hall sensor, NO open-collector output (10 mA), 5-18 VDC, 2-45 L/min, 477 pulses/L ±10 % on paper, **410 measured** (docs/CALIBRATION.md); wires: black GND, red +, yellow signal ([datasheet](datasheet-flow-meter-pm3-4-b.pdf)) |
 | Valve | DN20 ball valve with an HP Control **A80 4-wire, 9-24 V DC** actuator ([manual](Manual_A80_4-wires_9-24VDC.pdf)): see [Valve actuator](#valve-actuator-hp-control-a80-4-wire-9-24-v-dc) |
 | Connectors | 3-pin JST for the meter and the valve |
 | Indicators | Blue LED (flow), red LED (valve closed) |

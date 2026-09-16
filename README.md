@@ -28,7 +28,7 @@ rebuilds it around one rule: **the shut-off must work even when everything else 
 
 ## What it does
 
-- **Measures every flow**: liters, duration, rate (Hall-effect meter, 477 pulses per liter).
+- **Measures every flow**: liters, duration, rate (Hall-effect meter, 410 pulses per liter, measured against the house water meter).
 - **Shuts the water off** after continuous flow longer than a limit set in the app. This works with no Wi-Fi, no server and no clock.
 - **Smart rules**:
   - too much water in one go;

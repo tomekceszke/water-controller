@@ -63,8 +63,8 @@ CREATE TABLE IF NOT EXISTS setting (
     key   text PRIMARY KEY,
     value text NOT NULL
 );
--- Used for history without calibration; update after the bucket test (docs/CALIBRATION.md)
-INSERT INTO setting VALUES ('default_pulses_per_liter', '477') ON CONFLICT (key) DO NOTHING;
+-- Used for history that carries no calibration; 410 measured 2026-09-16 (docs/CALIBRATION.md)
+INSERT INTO setting VALUES ('default_pulses_per_liter', '410') ON CONFLICT (key) DO NOTHING;
 
 -- Views: local time is Europe/Warsaw (timestamp without time zone).
 
