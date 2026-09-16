@@ -69,7 +69,7 @@ HOME_IDF_FROM_GIT=1 firmware/build.sh   # build against the pinned home-idf tag 
 cmake -S firmware/test -B build-test && cmake --build build-test && ctest --test-dir build-test   # host tests
 ```
 - `sdkconfig` is committed and generated from `sdkconfig.defaults`; never run `idf.py set-target`.
-- `home-idf` is a separate public repo (`~/dev/home-idf`, github.com/tomekceszke/home-idf). A framework change needs a new tag, a bump in `main/idf_component.yml` (firmware and migrator) **and deleting `dependencies.lock`** (the component manager keeps a locked git commit even when the tag in the manifest changes), then `HOME_IDF_FROM_GIT=1 firmware/build.sh` to regenerate it.
+- `home-idf` is a separate public repo (`~/dev/home-controllers/home-idf`, github.com/tomekceszke/home-idf). A framework change needs a new tag, a bump in `main/idf_component.yml` (firmware and migrator) **and deleting `dependencies.lock`** (the component manager keeps a locked git commit even when the tag in the manifest changes), then `HOME_IDF_FROM_GIT=1 firmware/build.sh` to regenerate it.
 - CI (GitHub Actions): `tests.yml` (host tests + ingest validation) and `firmware.yml` (firmware + migrator build, placeholder secrets). There is no CD: releases go out through `tools/build_release.sh` + the OTA server.
 
 ### Setup

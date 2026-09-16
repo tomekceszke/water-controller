@@ -30,7 +30,7 @@ Reference meter here: Metering Flowis+ / ETW-MES-ECO, no. 22097104, Q3 4.0, R160
 
 1. With no water running, note the house meter reading and the device pulse counter:
    ```sh
-   ADMIN=$(python3 ~/dev/home-idf/tools/obfuscate.py --reveal \
+   ADMIN=$(python3 ~/dev/home-controllers/home-idf/tools/obfuscate.py --reveal \
      "$(grep HEADER_AUTHORIZATION_VALUE firmware/main/config/credentials.h | cut -d'"' -f2)")
    curl -s -H "Authorization: $ADMIN" http://192.168.11.244/admin/status \
      | jq '{counter:.flow.counter, flowing:.flow.flowing, uptime:.system.uptime_s}'
