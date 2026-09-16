@@ -7,7 +7,7 @@ optional and must never weaken it.**
 
 ## Status
 
-- **Production runs firmware 3.1.0** (ESP-IDF 5.4.2 bootloader and partition table, migrated over the air on 2026-09-15 at 23:02, see `docs/IDF5_MIGRATION.md`).
+- **Production runs firmware 3.2.0** (OTA 2026-09-16 17:19, sha256 `ca0bc89a…`: home-idf 0.1.8 app shell, 410 pulses/L default). 3.1.0 moved it to the ESP-IDF 5.4.2 bootloader and partition table over the air on 2026-09-15 at 23:02, see `docs/IDF5_MIGRATION.md`.
   - Updates from now on: `tools/build_release.sh`, publish `releases/water-controller.bin` as `water-controller.bin` on the OTA server, `POST /admin/su` (or the Device tab).
 - The legacy firmware (5.1.1, snapshot `fcb43e8`, findings in `docs/INVENTORY.md`) lives in `legacy/water-controller-5.1.1/` (gitignored) for reference.
 
@@ -202,9 +202,8 @@ tools/dev_proxy.py <device-ip> --port 8765   # serves firmware/web/app.html rend
     under-reporting volume by ~14 %.
   - Settles the cistern question: the Grohe full flush is 3620 pulses = 8.8 L, so it is set to 9 L.
   - `PULSES_PER_LITER_DEFAULT` in `config.h` is now 410; it only reaches the device with the next OTA release.
-- [ ] **3.2.0 built, not released**: shared app shell from home-idf 0.1.8 (tabs Live/History/Settings, slide to
-  shut off and to turn on) plus the 410 pulses/L default. Needs the v0.1.8 tag pushed and `dependencies.lock`
-  regenerated (`HOME_IDF_FROM_GIT=1 firmware/build.sh`) before `tools/build_release.sh`.
+- [x] **3.2.0 on production** (2026-09-16 17:19): shared app shell from home-idf 0.1.8 (tabs Live/History/Settings,
+  slide to shut off and to turn on) plus the 410 pulses/L default.
 - [ ] **UI polish** (owner wants another round), noted so far:
   - a dripping-leak rule event shows "0 L, 0 L/min" (firmware sends the current flow, which is zero between drips);
   - regenerate README screenshots after UI changes (`docs/img/app-*.png`, 390×844 at 2x, rendered with mocked API data in headless Chrome).
