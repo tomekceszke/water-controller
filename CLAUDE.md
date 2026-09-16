@@ -184,13 +184,14 @@ tools/dev_proxy.py <device-ip> --port 8765   # serves firmware/web/*.html locall
 
 - [x] Production migration to 3.1.0 (2026-09-15).
 - [ ] Off-host backups of hc-data dumps (`/var/backups/water`, `/var/backups/heating` live only on the CT disk): choose a location.
-- [ ] **2026-09-16: valve shut-off test on production** (owner):
-  1. Close the valve in the app and wait at least 15 s (actuator travel < 10 s; check the indicator on top of the actuator).
-  2. Open a tap fully. After a short pressure drop no water may flow; the app must show "No water running".
-  3. If water keeps flowing, the "Water flowing with the valve closed" alert (app + urgent ntfy) must come after 15 s: the valve does not close or leaks.
-  4. Close the tap, open the valve in the app (hold), check that water flows again.
-  5. Afterwards read `flow_event` / `alert_event` for device `30aea40aba44` in hc-data: liters that passed while closed.
-  - 2026-09-15 test was inconclusive: closed 23:10:02, opened 23:10:11 (9 s, shorter than the travel), no water flowing.
+- [x] **Valve shut-off test on production** (2026-09-16 11:14, passed).
+  - Run with the water already flowing, then closed from the app: flow stopped **6 s** after the command (actuator
+    travel < 10 s), ~0.4 L passed after it. `flow_event` 11:14:28-11:14:46, 353 pulses, `closed=true`, no `alert_event`.
+  - The first-floor tap kept running ~1.5 min afterwards, weakening: the riser draining by gravity, zero pulses through
+    the meter. Worth remembering for the next test, it looks alarming and is not.
+  - Reopened from the app, water flows again.
+  - Closing with the water already running tests more than the TODO's original order (close first, then open a tap):
+    it shows the cutoff itself, not just the absence of flow.
 - [x] **Calibration against the house water meter** (2026-09-16, three runs, `docs/CALIBRATION.md`).
   - Measured 366 pulses/L at 5 L/min, 408 at 9.8, 425 at 13.4: the meter under-reads at low flow and sits below the
     datasheet's 477 ±10 %. Factor set to **410** (the value at 8-11 L/min, where most household draw happens); 477 was
