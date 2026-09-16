@@ -19,8 +19,8 @@ rebuilds it around one rule: **the shut-off must work even when everything else 
 
 <p align="center">
   <img src="docs/img/app-now-flowing.png" width="23%" alt="App: water running, countdown to shut-off">
-  <img src="docs/img/app-now-closed.png" width="23%" alt="App: water off, hold to turn on">
-  <img src="docs/img/app-protection.png" width="23%" alt="App: shut-off limit and smart rules">
+  <img src="docs/img/app-now-closed.png" width="23%" alt="App: water off, slide to turn on">
+  <img src="docs/img/app-settings.png" width="23%" alt="App: shut-off limit and smart rules">
   <img src="docs/img/app-history.png" width="23%" alt="App: event history">
 </p>
 
@@ -40,7 +40,7 @@ rebuilds it around one rule: **the shut-off must work even when everything else 
 - **Keeps the valve where it was** across reboots, power cuts and firmware updates.
 - **iPhone home-screen app** served by the device:
   - live flow and a countdown to shut-off;
-  - one tap to shut off, press and hold to turn water back on;
+  - slide to shut the water off or turn it back on;
   - history, settings, pulse-signal diagnostics.
 - **Push notifications** ([ntfy](https://ntfy.sh)) for shut-offs, leaks and a valve that does not close.
 - **History and analytics** on a home server (MQTT → PostgreSQL), including six years imported from Google BigQuery.

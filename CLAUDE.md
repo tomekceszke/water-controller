@@ -97,7 +97,7 @@ main/
   telemetry.c   MQTT to hc-data through its own queue and task (timestamps fixed once the clock syncs)
   api.c         routes on the home-idf HTTP server
   config/       config.h (committed), credentials.h (never committed)
-web/            app.html (tabs Now/History/Protection/Device, vanilla, ~9.5 KB gzip), manifest, icon
+web/            app.html (tabs Live/History/Settings on the home-idf app shell, vanilla, ~11.4 KB gzip), manifest, icon
                 (the sign-in page comes from home-idf: home_idf_login_page() in main/CMakeLists.txt)
 test/           host unit tests (tier0, tier1, rules)
 migrator/       one-shot OTA image (home-idf hi_migrator); build with tools/build_release.sh [--spare]
@@ -138,11 +138,14 @@ The broker is `mqtt://192.168.11.16:1883`, user `water-controller`, QoS 1. Topic
 ### UI work
 
 ```sh
-tools/dev_proxy.py <device-ip> --port 8765   # serves firmware/web/*.html locally, forwards /api and /admin to the device
+tools/dev_proxy.py <device-ip> --port 8765   # serves firmware/web/app.html rendered with the home-idf shell, forwards /api and /admin
 ```
 - Language: English.
-- Design tokens are in `app.html` `:root`.
-- Opening the valve is a 1.2 s hold, closing is one tap.
+- Layout, controls and the tab bar come from home-idf (`web/app_shell.css`, `web/app_shell.js`, rendered by
+  `home_idf_app_page()`); `app.html` sets its palette in `:root` and holds only the water parts. Same layout as
+  gate-controller (owner decision 2026-09-16): wordmark + status, headline, three numbers, main view, latest events,
+  swipe and small actions docked above the tabs.
+- Shutting off and turning on are both a slide of the knob to the end (fires on arrival, no hold, no dialog).
 
 ## Legacy firmware (production until migration)
 
@@ -199,10 +202,12 @@ tools/dev_proxy.py <device-ip> --port 8765   # serves firmware/web/*.html locall
     under-reporting volume by ~14 %.
   - Settles the cistern question: the Grohe full flush is 3620 pulses = 8.8 L, so it is set to 9 L.
   - `PULSES_PER_LITER_DEFAULT` in `config.h` is now 410; it only reaches the device with the next OTA release.
+- [ ] **3.2.0 built, not released**: shared app shell from home-idf 0.1.8 (tabs Live/History/Settings, slide to
+  shut off and to turn on) plus the 410 pulses/L default. Needs the v0.1.8 tag pushed and `dependencies.lock`
+  regenerated (`HOME_IDF_FROM_GIT=1 firmware/build.sh`) before `tools/build_release.sh`.
 - [ ] **UI polish** (owner wants another round), noted so far:
   - a dripping-leak rule event shows "0 L, 0 L/min" (firmware sends the current flow, which is zero between drips);
-  - flow durations like "20:10" read like a clock time;
-  - regenerate README screenshots after UI changes (`docs/img/app-*.png`, rendered with mocked API data via Playwright).
+  - regenerate README screenshots after UI changes (`docs/img/app-*.png`, 390×844 at 2x, rendered with mocked API data in headless Chrome).
 - [~] **Unified sign-in page for all projects, moved to home-idf** (owner request 2026-09-15):
   - done in home-idf 0.1.6: `web/login.html` + `home_idf_login_page(<lib> NAME "w-controller" ACCENT "#56c2e6" [ICONS ON|OFF])`,
     rendered and gzipped at build time under the symbols `hi_httpd` already reads; water-controller uses it and no

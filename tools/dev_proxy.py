@@ -9,6 +9,7 @@ import argparse
 import http.client
 import http.server
 import pathlib
+import sys
 
 ap = argparse.ArgumentParser()
 ap.add_argument("device")
@@ -18,6 +19,11 @@ WEB = pathlib.Path(__file__).resolve().parent.parent / "firmware" / "web"
 # The sign-in page comes from home-idf and is rendered with the device name and accent at build time.
 LOGIN = WEB.parent / "build" / "esp-idf" / "main" / "login_page" / "login.html"
 TYPES = {".png": "image/png", ".webmanifest": "application/manifest+json"}
+# The app page is rendered with the home-idf app shell on every request, so edits show up on reload.
+HOME_IDF = next(p for p in (WEB.parent.parent.parent / "home-idf", WEB.parent / "managed_components" / "home-idf")
+                if (p / "tools" / "render_page.py").exists())
+sys.path.insert(0, str(HOME_IDF / "tools"))
+import render_page  # noqa: E402
 
 
 class Proxy(http.server.BaseHTTPRequestHandler):
@@ -51,10 +57,13 @@ class Proxy(http.server.BaseHTTPRequestHandler):
         conn = http.client.HTTPConnection(args.device, 80, timeout=10)
         conn.request("GET", "/api/session", headers={"Host": args.device, "Cookie": self.headers.get("Cookie", "")})
         authenticated = b'"authenticated":true' in conn.getresponse().read()
-        page = WEB / "app.html" if authenticated else LOGIN
-        if not page.exists():
-            raise SystemExit(f"{page} is missing: run firmware/build.sh once, the sign-in page is rendered there")
-        self.static(page.read_bytes(), "text/html; charset=utf-8")
+        if authenticated:
+            body = render_page.render((WEB / "app.html").read_text("utf-8"), "w-controller").encode()
+        elif LOGIN.exists():
+            body = LOGIN.read_bytes()
+        else:
+            raise SystemExit(f"{LOGIN} is missing: run firmware/build.sh once, the sign-in page is rendered there")
+        self.static(body, "text/html; charset=utf-8")
 
     def do_POST(self):
         self.forward()
