@@ -128,7 +128,7 @@ The broker is `mqtt://192.168.11.16:1883`, user `water-controller`, QoS 1. Topic
 
 | Topic | Payload |
 |---|---|
-| `water/<mac>/flow` | `{start, stop, pulses, liters, max_lpm, closed, pulses_per_liter}` |
+| `water/<mac>/flow` | `{start, stop, pulses, liters, max_lpm, closed, pulses_per_liter}`; only flows ≥ `FLOW_EVENT_MIN_ML` (0.1 L) or ended by a close; smaller ones only add to totals and `usage.small_flows_*` |
 | `water/<mac>/sample` | every 10 s while water flows |
 | `water/<mac>/valve` | valve changes |
 | `water/<mac>/rule` | Tier 2 triggers |

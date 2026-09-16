@@ -42,6 +42,7 @@
 
 /* EVENTS */
 #define EVENTS_RING_SIZE                50
+#define FLOW_EVENT_MIN_ML               100     // smaller flows (rotor twitches, drips) count in totals, not listed
 
 /* TELEMETRY (hc-data; failures never affect protection) */
 #define MQTT_BROKER_URI                 "mqtt://192.168.11.16:1883"

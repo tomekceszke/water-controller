@@ -99,6 +99,7 @@
       <div><span class="num" id="hFlows">0</span><span class="unit">flows since restart</span></div>
       <div><span class="num" id="hBoot">0</span><span class="unit">L since restart</span></div>
     </div>
+    <p class="note" id="hSmall" hidden></p>
     <h2 class="sec">Events</h2>
     <ul class="events" id="events"></ul>
     <p class="note" id="eventsEmpty" hidden>Nothing has happened since the controller restarted.</p>
@@ -287,6 +288,9 @@ function render(s) {
   if (tabs.current === "history") {
     $("hToday").textContent = fmtL(s.usage.liters_today);
     $("hFlows").textContent = s.usage.flows_since_boot;
+    const small = s.usage.small_flows_today || 0;
+    $("hSmall").hidden = !small;
+    $("hSmall").textContent = `${small} tiny flow${small === 1 ? "" : "s"} under 0.1 L today, counted but not listed.`;
     $("hBoot").textContent = fmtL(s.usage.liters_since_boot);
   }
 }

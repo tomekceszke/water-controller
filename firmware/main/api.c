@@ -86,6 +86,8 @@ static cJSON *status_json(void)
     cJSON_AddNumberToObject(usage, "liters_today", liters(t.pulses_today, s.pulses_per_liter));
     cJSON_AddNumberToObject(usage, "liters_since_boot", liters(t.pulses_since_boot, s.pulses_per_liter));
     cJSON_AddNumberToObject(usage, "flows_since_boot", t.flows_since_boot);
+    cJSON_AddNumberToObject(usage, "small_flows_today", t.small_flows_today);
+    cJSON_AddNumberToObject(usage, "small_flows_since_boot", t.small_flows_since_boot);
 
     protect_status_t p;
     protect_status(&p);
