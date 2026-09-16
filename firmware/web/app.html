@@ -40,6 +40,9 @@
   .pipe .handle { transition: none; }
 }
 
+/* Pipe and countdown together; centered when the main view is taller (landscape) */
+.valve { display: flex; flex-direction: column; justify-content: center; }
+
 /* Cutoff countdown */
 .cutoff .row { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; color: var(--muted); font-size: 14px; }
 .cutoff strong { color: var(--text); font: 600 16px var(--round); }
@@ -69,22 +72,24 @@
       <div><span class="num" id="duration">0</span><span class="unit" id="durationUnit">min flowing</span></div>
     </div>
 
-    <svg class="pipe" viewBox="0 0 360 150" aria-hidden="true">
-      <rect class="wall" x="1" y="55" width="358" height="40" rx="8"/>
-      <rect class="up" x="4" y="58" width="136" height="34" rx="5"/>
-      <rect class="down" x="220" y="58" width="136" height="34" rx="5"/>
-      <line class="stream" x1="14" y1="75" x2="134" y2="75"/>
-      <line class="stream after" x1="226" y1="75" x2="346" y2="75"/>
-      <circle class="body" cx="180" cy="75" r="40"/>
-      <g class="handle">
-        <rect class="lever" x="118" y="66" width="124" height="18" rx="9"/>
-        <circle class="hub" cx="180" cy="75" r="7"/>
-      </g>
-    </svg>
+    <div class="valve main-view">
+      <svg class="pipe" viewBox="0 0 360 150" aria-hidden="true">
+        <rect class="wall" x="1" y="55" width="358" height="40" rx="8"/>
+        <rect class="up" x="4" y="58" width="136" height="34" rx="5"/>
+        <rect class="down" x="220" y="58" width="136" height="34" rx="5"/>
+        <line class="stream" x1="14" y1="75" x2="134" y2="75"/>
+        <line class="stream after" x1="226" y1="75" x2="346" y2="75"/>
+        <circle class="body" cx="180" cy="75" r="40"/>
+        <g class="handle">
+          <rect class="lever" x="118" y="66" width="124" height="18" rx="9"/>
+          <circle class="hub" cx="180" cy="75" r="7"/>
+        </g>
+      </svg>
 
-    <div class="cutoff" id="cutoff" hidden>
-      <div class="row"><span>Shuts off in <strong id="remaining">–</strong></span><span id="limitText"></span></div>
-      <div class="track"><div class="fill" id="fill"></div></div>
+      <div class="cutoff" id="cutoff" hidden>
+        <div class="row"><span>Shuts off in <strong id="remaining">–</strong></span><span id="limitText"></span></div>
+        <div class="track"><div class="fill" id="fill"></div></div>
+      </div>
     </div>
 
     <h2 class="sec" id="latestTitle" hidden>Latest <button type="button" class="link" data-goto="history">All</button></h2>
