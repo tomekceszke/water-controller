@@ -188,6 +188,8 @@ tools/dev_proxy.py <device-ip> --port 8765   # serves firmware/web/app.html rend
 
 - [x] Production migration to 3.1.0 (2026-09-15).
 - [ ] Off-host backups of hc-data dumps (`/var/backups/water`, `/var/backups/heating` live only on the CT disk): choose a location.
+- [ ] Data visualisation for hc-data (shared with heating-controller): Grafana (probably) with a PostgreSQL data source on
+  `wc_read` / `hc_read`, dashboards for water flow, events and alerts next to the heating ones. Decide where it runs first.
 - [x] **Valve shut-off test on production** (2026-09-16 11:14, passed).
   - Run with the water already flowing, then closed from the app: flow stopped **6 s** after the command (actuator
     travel < 10 s), ~0.4 L passed after it. `flow_event` 11:14:28-11:14:46, 353 pulses, `closed=true`, no `alert_event`.
