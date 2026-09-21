@@ -51,6 +51,7 @@
 #define MQTT_OUTBOX_LIMIT_BYTES         32768
 #define TELEMETRY_QUEUE_LEN             64
 #define TELEMETRY_SAMPLE_PERIOD_S       10      // flow samples published while water flows
+#define MQTT_STATE_PERIOD_S             60      // retained water/<mac>/state refresh
 
 /* OTA (rehearsal builds for the spare board use another file name, so production never fetches them:
  * -DWATER_OTA_FILE=water-controller-spare.bin) */

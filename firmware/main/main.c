@@ -31,6 +31,7 @@ extern const char ota_cert_pem_start[] asm("_binary_ota_server_cert_15_pem_start
 /* credentials.h values may be obfuscated ("obf1:...", home-idf tools/obfuscate.py) */
 static char s_wifi_pass[65];
 static char s_admin_header[128];
+static char s_readonly_header[128];
 static char s_ntfy_topic[65];
 static char s_ntfy_error_topic[65];
 static char s_mqtt_pass[65];
@@ -42,6 +43,7 @@ static void reveal_credentials(void)
 #endif
     bool ok = hi_secret_reveal(WIFI_PASS, s_wifi_pass, sizeof(s_wifi_pass))
               & hi_secret_reveal(HEADER_AUTHORIZATION_VALUE, s_admin_header, sizeof(s_admin_header))
+              & hi_secret_reveal(HEADER_AUTHORIZATION_READONLY_VALUE, s_readonly_header, sizeof(s_readonly_header))
 #ifndef WATER_SPARE
               & hi_secret_reveal(NTFY_TOPIC, s_ntfy_topic, sizeof(s_ntfy_topic))
               & hi_secret_reveal(NTFY_ERROR_TOPIC, s_ntfy_error_topic, sizeof(s_ntfy_error_topic))
@@ -97,7 +99,6 @@ void app_main(void)
     });
     hi_ntp_start(&(hi_ntp_config_t) {.servers = {"0.pl.pool.ntp.org", "1.pl.pool.ntp.org", "pool.ntp.org"}});
     hi_ota_init(&(hi_ota_config_t) {.url = OTA_URL, .cert_pem = ota_cert_pem_start, .delete_after = true});
-    telemetry_start(s_mqtt_pass);
     hi_auth_init(&(hi_auth_config_t) {
         .password_iterations = AUTH_PASSWORD_ITERATIONS,
 #ifdef WATER_TEST_SALT_HEX      // hardware test builds: throwaway password, never the owner's
@@ -108,8 +109,10 @@ void app_main(void)
         .password_hash_hex = AUTH_PASSWORD_HASH_HEX,
 #endif
         .admin_header_value = s_admin_header,
+        .readonly_header_value = s_readonly_header,
     });
     api_start();
+    telemetry_start(s_mqtt_pass);
     testhw_start();
     hi_health_start(&(hi_health_config_t) {
         .is_healthy = healthy,

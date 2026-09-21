@@ -4,10 +4,11 @@
 #include "freertos/queue.h"
 #include "freertos/task.h"
 #include "esp_log.h"
-#include "esp_mac.h"
-#include "mqtt_client.h"
 
+#include "hi_mqtt.h"
 #include "hi_ntp.h"
+
+#include "api.h"
 
 #include "config/config.h"
 #include "rules.h"
@@ -16,19 +17,20 @@
 #include "valve.h"
 
 /*
- * Publishes to Mosquitto on hc-data (QoS 1, esp-mqtt outbox bounded by MQTT_OUTBOX_LIMIT_BYTES):
+ * Publishes to Mosquitto on hc-data through hi_mqtt (QoS 1, outbox bounded by MQTT_OUTBOX_LIMIT_BYTES):
  *   water/<mac>/flow     {"start":<unix>,"stop":<unix>,"pulses":n,"liters":x,"max_lpm":x,"closed":bool}
  *   water/<mac>/sample   {"ts":<unix>,"pulses":n,"period_ms":n,"lpm":x,"flow_pulses":n}
  *   water/<mac>/valve    {"ts":<unix>,"state":"open|closed","reason":"...","detail":"..."}
  *   water/<mac>/rule     {"ts":<unix>,"rule":"...","close":bool,"pulses":n,"detail":"..."}
  *   water/<mac>/alert    {"ts":<unix>,"detail":"..."}
- *   water/<mac>/status   "online" / "offline" (retained, LWT)
+ *   water/<mac>/status   "online" / "offline" (retained, LWT; published by hi_mqtt)
+ *   water/<mac>/state    the full status JSON (retained; published by hi_mqtt)
  * Items created before the clock is synced wait in the queue and get their wall-clock time once it is.
  */
 
 static const char *TAG = "TELEMETRY";
 
-#define TOPIC_MAX_LEN 64
+#define KIND_MAX_LEN 16
 #define PAYLOAD_MAX_LEN 256
 #define WAIT_FOR_CLOCK_MS 1000
 
@@ -41,11 +43,6 @@ typedef struct {
 } item_t;
 
 static QueueHandle_t s_queue;
-static esp_mqtt_client_handle_t s_client;
-static char s_device_id[13];
-static char s_client_id[16];
-static char s_status_topic[TOPIC_MAX_LEN];
-static volatile bool s_connected;
 static volatile uint32_t s_dropped;
 
 static int64_t unix_of(int64_t mono_ms)
@@ -55,12 +52,7 @@ static int64_t unix_of(int64_t mono_ms)
 
 static void publish(const char *kind, const char *payload)
 {
-    char topic[TOPIC_MAX_LEN];
-    snprintf(topic, sizeof(topic), MQTT_TOPIC_PREFIX "/%s/%s", s_device_id, kind);
-    if (esp_mqtt_client_enqueue(s_client, topic, payload, 0, 1, 0, true) < 0) {
-        s_dropped++;
-        ESP_LOGW(TAG, "Outbox full, dropped %s", kind);
-    }
+    hi_mqtt_publish(kind, payload, 1, false);
 }
 
 static void publish_item(const item_t *item)
@@ -121,62 +113,29 @@ static void telemetry_task(void *arg)
     }
 }
 
-static void on_mqtt_event(void *arg, esp_event_base_t base, int32_t event_id, void *event_data)
-{
-    const esp_mqtt_event_handle_t event = event_data;
-    switch ((esp_mqtt_event_id_t) event_id) {
-        case MQTT_EVENT_CONNECTED:
-            s_connected = true;
-            ESP_LOGI(TAG, "MQTT connected, %d bytes queued", esp_mqtt_client_get_outbox_size(s_client));
-            esp_mqtt_client_enqueue(s_client, s_status_topic, "online", 0, 1, 1, true);
-            break;
-        case MQTT_EVENT_DISCONNECTED:
-            s_connected = false;
-            ESP_LOGW(TAG, "MQTT disconnected");
-            break;
-        case MQTT_EVENT_ERROR:
-            // Warning, not error: an unreachable hc-data must not turn into error notifications
-            ESP_LOGW(TAG, "MQTT error type %d, errno %d", event->error_handle->error_type,
-                     event->error_handle->esp_transport_sock_errno);
-            break;
-        default:
-            break;
-    }
-}
-
 void telemetry_start(const char *mqtt_pass)
 {
-    if (mqtt_pass == NULL || mqtt_pass[0] == '\0') {
-        ESP_LOGW(TAG, "No MQTT password: telemetry disabled");
+    s_queue = xQueueCreate(TELEMETRY_QUEUE_LEN, sizeof(item_t));
+    if (s_queue == NULL) {
+        ESP_LOGW(TAG, "Telemetry disabled: out of memory");
         return;
     }
-    uint8_t mac[6];
-    esp_read_mac(mac, ESP_MAC_WIFI_STA);
-    snprintf(s_device_id, sizeof(s_device_id), "%02x%02x%02x%02x%02x%02x",
-             mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
-    snprintf(s_client_id, sizeof(s_client_id), "wc-%s", s_device_id);
-    snprintf(s_status_topic, sizeof(s_status_topic), MQTT_TOPIC_PREFIX "/%s/status", s_device_id);
-
-    const esp_mqtt_client_config_t config = {
-        .broker.address.uri = MQTT_BROKER_URI,
-        .credentials = {
-            .username = TELEMETRY_MQTT_USER,
-            .client_id = s_client_id,
-            .authentication.password = mqtt_pass,
-        },
-        .session.last_will = {.topic = s_status_topic, .msg = "offline", .qos = 1, .retain = 1},
-        .outbox.limit = MQTT_OUTBOX_LIMIT_BYTES,
-        .network.reconnect_timeout_ms = 30000,
-    };
-    s_client = esp_mqtt_client_init(&config);
-    s_queue = xQueueCreate(TELEMETRY_QUEUE_LEN, sizeof(item_t));
-    if (s_client == NULL || s_queue == NULL) {
-        ESP_LOGW(TAG, "Telemetry disabled: out of memory");
+    const esp_err_t err = hi_mqtt_start(&(hi_mqtt_config_t) {
+        .broker_uri = MQTT_BROKER_URI,
+        .topic_prefix = MQTT_TOPIC_PREFIX,
+        .username = TELEMETRY_MQTT_USER,
+        .password = mqtt_pass,
+        .client_id_prefix = "wc",
+        .outbox_limit_bytes = MQTT_OUTBOX_LIMIT_BYTES,
+        .state_fn = api_status_json,
+        .state_period_s = MQTT_STATE_PERIOD_S,
+    });
+    if (err != ESP_OK) {
+        ESP_LOGW(TAG, "Telemetry disabled: MQTT client not started (%s)", esp_err_to_name(err));
+        vQueueDelete(s_queue);
         s_queue = NULL;
         return;
     }
-    esp_mqtt_client_register_event(s_client, ESP_EVENT_ANY_ID, on_mqtt_event, NULL);
-    esp_mqtt_client_start(s_client);
     if (xTaskCreate(telemetry_task, "telemetry", 4096, NULL, 3, NULL) != pdPASS) {
         ESP_LOGW(TAG, "Telemetry task not started");
     }
@@ -200,10 +159,7 @@ void telemetry_post_sample(const telemetry_sample_t *sample)
     post(&item);
 }
 
-void telemetry_stats(telemetry_stats_t *out)
+uint32_t telemetry_dropped(void)
 {
-    out->enabled = s_queue != NULL;
-    out->connected = s_connected;
-    out->dropped = s_dropped;
-    out->outbox_bytes = s_client ? esp_mqtt_client_get_outbox_size(s_client) : 0;
+    return s_dropped;
 }

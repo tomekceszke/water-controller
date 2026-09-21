@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.16)
-set(PROJECT_VER "3.2.3")
+set(PROJECT_VER "3.3.0")
 # HOME_IDF_LOCAL=<checkout>: build against a local home-idf instead of the pinned git tag, with a separate lock
 # file so the committed dependencies.lock stays pinned (build.sh sets it when ../../home-idf exists)
 if(DEFINED ENV{HOME_IDF_LOCAL})

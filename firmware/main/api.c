@@ -6,6 +6,7 @@
 
 #include "hi_auth.h"
 #include "hi_httpd.h"
+#include "hi_mqtt.h"
 
 #include "api.h"
 #include "config/config.h"
@@ -50,7 +51,7 @@ static void add_settings(cJSON *obj, const settings_t *s)
     cJSON_AddNumberToObject(obj, "vacation_max_liters", s->vacation_max_liters);
 }
 
-static cJSON *status_json(void)
+cJSON *api_status_json(void)
 {
     int64_t now_ms = esp_timer_get_time() / 1000;
     settings_t s;
@@ -100,12 +101,13 @@ static cJSON *status_json(void)
 
     add_settings(cJSON_AddObjectToObject(root, "settings"), &s);
 
-    telemetry_stats_t ts;
-    telemetry_stats(&ts);
+    hi_mqtt_stats_t ts;
+    hi_mqtt_stats(&ts);
     cJSON *tele = cJSON_AddObjectToObject(root, "telemetry");
     cJSON_AddBoolToObject(tele, "enabled", ts.enabled);
     cJSON_AddBoolToObject(tele, "connected", ts.connected);
     cJSON_AddNumberToObject(tele, "dropped", ts.dropped);
+    cJSON_AddNumberToObject(tele, "queue_dropped", telemetry_dropped());
     cJSON_AddNumberToObject(tele, "outbox_bytes", ts.outbox_bytes);
 
     cJSON *diag = cJSON_AddObjectToObject(root, "diag");
@@ -123,7 +125,7 @@ static esp_err_t status_handler(httpd_req_t *req)
 {
     esp_err_t result;
     if (!hi_httpd_guard(req, HI_GUARD_SESSION, NULL, &result)) return result;
-    return hi_httpd_send_json(req, "200 OK", status_json());
+    return hi_httpd_send_json(req, "200 OK", api_status_json());
 }
 
 static esp_err_t events_handler(httpd_req_t *req)
@@ -195,7 +197,7 @@ static esp_err_t valve_handler(httpd_req_t *req)
     char ip[16];
     hi_httpd_client_ip(req, ip, sizeof(ip));
     valve_set(state, VALVE_BY_USER, ip);
-    return hi_httpd_send_json(req, "200 OK", status_json());
+    return hi_httpd_send_json(req, "200 OK", api_status_json());
 }
 
 static void json_u32(const cJSON *obj, const char *key, uint32_t *field)
@@ -237,7 +239,7 @@ static esp_err_t settings_handler(httpd_req_t *req)
     esp_err_t err = settings_set(&s);
     ESP_LOGW(TAG, "(not error) Settings changed: Tier 1 %lu s", (unsigned long) s.tier1_limit_s);
     if (err != ESP_OK) return hi_httpd_send_error(req, "500 Internal Server Error", "save_failed");
-    return hi_httpd_send_json(req, "200 OK", status_json());
+    return hi_httpd_send_json(req, "200 OK", api_status_json());
 }
 
 static esp_err_t minutes_from_body(httpd_req_t *req, uint32_t *minutes, esp_err_t *result)
@@ -259,7 +261,7 @@ static esp_err_t snooze_handler(httpd_req_t *req)
     uint32_t minutes;
     if (minutes_from_body(req, &minutes, &result) != ESP_OK) return result;
     protect_snooze(minutes);
-    return hi_httpd_send_json(req, "200 OK", status_json());
+    return hi_httpd_send_json(req, "200 OK", api_status_json());
 }
 
 static esp_err_t diag_handler(httpd_req_t *req)
@@ -269,7 +271,7 @@ static esp_err_t diag_handler(httpd_req_t *req)
     uint32_t minutes;
     if (minutes_from_body(req, &minutes, &result) != ESP_OK) return result;
     flow_diag(minutes);
-    return hi_httpd_send_json(req, "200 OK", status_json());
+    return hi_httpd_send_json(req, "200 OK", api_status_json());
 }
 
 /* Scripts / home automation: Authorization header, same body as /api/valve. */
@@ -287,16 +289,18 @@ static esp_err_t admin_valve_handler(httpd_req_t *req)
     cJSON_Delete(body);
     if (!ok) return hi_httpd_send_error(req, "400 Bad Request", "state");
     valve_set(state, VALVE_BY_ADMIN, "admin");
-    return hi_httpd_send_json(req, "200 OK", status_json());
+    return hi_httpd_send_json(req, "200 OK", api_status_json());
 }
 
+/* Reading also accepts the read-only value, so a permanent subscriber never needs the admin secret
+ * that carries OTA and reboot with it. */
 static esp_err_t admin_status_handler(httpd_req_t *req)
 {
-    if (!hi_auth_admin_header_valid(req)) {
+    if (!hi_auth_readonly_header_valid(req)) {
         httpd_resp_set_status(req, "401 Unauthorized");
         return httpd_resp_send(req, "", 0);
     }
-    return hi_httpd_send_json(req, "200 OK", status_json());
+    return hi_httpd_send_json(req, "200 OK", api_status_json());
 }
 
 void api_start(void)
