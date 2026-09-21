@@ -5,6 +5,7 @@ topic write water/+/sample
 topic write water/+/valve
 topic write water/+/rule
 topic write water/+/alert
+topic write water/+/state
 topic readwrite water/+/status
 topic read water/+/config
 
