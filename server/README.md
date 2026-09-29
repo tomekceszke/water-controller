@@ -73,4 +73,7 @@ ssh root@192.168.11.16 'runuser -u postgres -- psql water'
 uv run --with paho-mqtt python -m unittest server/ingest/test_wc_ingest.py
 ```
 
+Usage model and anomaly thresholds (offline, read-only on `water`): [`server/model/`](model/README.md), results in
+[`docs/USAGE_MODEL.md`](../docs/USAGE_MODEL.md).
+
 Backups: `wc-pg-backup.timer`, nightly `pg_dump -Fc water` into `/var/backups/water`, kept for 14 days.

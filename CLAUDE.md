@@ -19,7 +19,7 @@ The plan is in `~/.claude/plans/cele-odnosnie-tego-projektu-rosy-moler.md`. Stag
 - [x] 4 hc-data (deployed 2026-09-15, history imported; Grafana not done)
 - [x] 5 migration (production 2026-09-15 23:02)
 - [x] 6 docs/portfolio (README, LICENSE, CI)
-- [ ] 7 anomaly model
+- [~] 7 anomaly model (offline model + report done 2026-09-29: `server/model/`, `docs/USAGE_MODEL.md`; alerts and Tier 2 config not yet)
 - [ ] 8 GCP shutdown
 
 ## Protection tiers (design rule for every change)
@@ -216,5 +216,10 @@ tools/dev_proxy.py <device-ip> --port 8765   # serves firmware/web/app.html rend
   - design (owner picked it on 2026-09-16 from mocks): left-aligned wordmark split on the name's first hyphen,
     accent `W-` at 1.45x over `controller`, no subtitle, field and button both 58 px with a 20 px gap;
   - still to do: gate (`g-controller`), heating and floor-heating when they move to home-idf.
-- [ ] Stage 7 anomaly model; stage 8 GCP shutdown (not before 2026-09-29).
+- [~] Stage 7 anomaly model: offline part done (hourly forecast, thresholds, synthetic-leak evaluation). Still to do:
+  label the `unlabelled` rows in `server/model/known_events.csv` (pool / hose), server-side scoring + ntfy, night
+  limits to Tier 2 via retained `water/<mac>/config`.
+  - Legacy volumes of long flows can carry an undetected counter wrap (+80 L): `features.clean_flows` removes wraps
+    from legacy flows averaging over 26 L/min; durations and counts are unaffected.
+- [ ] Stage 8 GCP shutdown (not before 2026-09-29).
 - [ ] Sibling projects: CI everywhere (gate: none, heating: not on GitHub yet), move them to home-idf.

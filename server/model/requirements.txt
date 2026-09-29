@@ -1,0 +1,8 @@
+holidays>=0.60
+joblib>=1.4
+matplotlib>=3.9
+numpy>=2.0
+pandas>=2.2
+psycopg[binary]>=3.2
+pyarrow>=17
+scikit-learn>=1.5

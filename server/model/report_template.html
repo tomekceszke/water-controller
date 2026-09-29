@@ -1,0 +1,559 @@
+<title>Water Usage Model</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: one reading column; the "ask the model" tool first, evidence below it, tables scroll inside their own box.
+   Palette follows the w-controller app (deep teal-navy + #56c2e6), with a light variant of the same hues. */
+:root {
+  --bg: #f2f7f9; --panel: #ffffff; --panel-2: #e8f1f5; --line: #cfdee6;
+  --ink: #0f1e27; --muted: #4a6572; --accent: #1b82a8; --on-accent: #ffffff;
+  --actual: #d9602f; --warn: #b8700f; --bad: #cc3f31; --good: #1f8a5b;
+  --f-display: "Instrument Sans", "Segoe UI", system-ui, sans-serif;
+  --f-body: "Instrument Sans", "Segoe UI", system-ui, sans-serif;
+  --f-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0f1e27; --panel: #162a35; --panel-2: #1b3340; --line: #27465a;
+    --ink: #e4eff3; --muted: #8aa9b6; --accent: #56c2e6; --on-accent: #0d1c24;
+    --actual: #f08a5d; --warn: #f2a541; --bad: #ff6f5e; --good: #4fc28b; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0f1e27; --panel: #162a35; --panel-2: #1b3340; --line: #27465a;
+  --ink: #e4eff3; --muted: #8aa9b6; --accent: #56c2e6; --on-accent: #0d1c24;
+  --actual: #f08a5d; --warn: #f2a541; --bad: #ff6f5e; --good: #4fc28b; color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--ink); font: 400 16px/1.55 var(--f-body); }
+.wrap { max-width: 1080px; margin: 0 auto; padding-inline: 20px; padding-block: 28px 64px; display: grid; grid-template-columns: minmax(0, 1fr); gap: 56px; }
+h1, h2, h3 { font-family: var(--f-display); text-wrap: balance; margin: 0; line-height: 1.15; }
+h1 { font-size: clamp(2rem, 5vw, 3rem); font-weight: 700; letter-spacing: -0.02em; }
+h2 { font-size: 1.6rem; font-weight: 700; letter-spacing: -0.01em; }
+h3 { font-size: 1.05rem; font-weight: 600; }
+p { margin: 0; max-width: 68ch; }
+.muted { color: var(--muted); }
+.mono, .num { font-family: var(--f-mono); font-variant-numeric: tabular-nums; }
+.eyebrow { font: 500 0.75rem/1 var(--f-mono); letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+section { display: grid; gap: 18px; min-width: 0; }
+.lede { color: var(--muted); font-size: 1.02rem; }
+
+/* header */
+header { display: grid; gap: 16px; }
+.brand { display: flex; align-items: baseline; gap: 2px; font: 700 1rem/1 var(--f-display); }
+.brand b { color: var(--accent); font-size: 1.45em; }
+.facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; margin-top: 8px; }
+.fact { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 16px 18px; display: grid; gap: 6px; }
+.fact .v { font: 600 1.9rem/1 var(--f-mono); font-variant-numeric: tabular-nums; }
+.fact .v small { font-size: 0.5em; font-weight: 400; color: var(--muted); margin-left: 4px; }
+.fact .k { font-size: 0.9rem; color: var(--muted); }
+
+/* ask panel */
+.ask { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 22px; display: grid; gap: 22px; }
+.controls { display: flex; flex-wrap: wrap; gap: 14px 22px; align-items: end; }
+.field { display: grid; gap: 6px; }
+.field label { font: 500 0.72rem/1 var(--f-mono); letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+select, input[type=number] {
+  font: 500 1rem var(--f-mono); color: var(--ink); background: var(--panel-2); border: 1px solid var(--line);
+  border-radius: 8px; padding: 8px 10px; min-width: 0;
+}
+input[type=number] { width: 7.5em; }
+select:focus-visible, input:focus-visible, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.presets { display: flex; flex-wrap: wrap; gap: 8px; }
+.presets button {
+  font: 500 0.85rem var(--f-body); color: var(--ink); background: transparent; border: 1px solid var(--line);
+  border-radius: 999px; padding: 6px 12px; cursor: pointer;
+}
+.presets button:hover { border-color: var(--accent); color: var(--accent); }
+.ask-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(290px, 1fr)); gap: 22px; }
+.ask-grid > div { min-width: 0; display: grid; gap: 12px; align-content: start; }
+.big { font: 600 3rem/1 var(--f-mono); font-variant-numeric: tabular-nums; }
+.big small { font-size: 0.35em; color: var(--muted); font-weight: 400; margin-left: 6px; }
+.range { position: relative; height: 34px; }
+.range .track { position: absolute; left: 0; right: 0; top: 14px; height: 6px; border-radius: 3px; background: var(--panel-2); }
+.range .band { position: absolute; top: 14px; height: 6px; border-radius: 3px; background: var(--accent); opacity: 0.35; }
+.range .tick { position: absolute; top: 8px; width: 2px; height: 18px; background: var(--accent); }
+.range .tick span { position: absolute; top: 20px; transform: translateX(-50%); font: 400 0.72rem var(--f-mono); color: var(--muted); white-space: nowrap; }
+.limits { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.limits li { display: flex; justify-content: space-between; gap: 12px; border-bottom: 1px dashed var(--line); padding-bottom: 6px; }
+.limits li span:last-child { font-family: var(--f-mono); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.verdict { display: grid; gap: 8px; }
+.pill { display: inline-flex; align-items: center; gap: 6px; font: 600 0.8rem var(--f-mono); letter-spacing: 0.04em; padding: 4px 10px; border-radius: 999px; border: 1px solid currentColor; }
+.pill.alarm { color: var(--bad); }
+.pill.ok { color: var(--good); }
+.pill.na { color: var(--muted); }
+.check-row { display: flex; justify-content: space-between; gap: 12px; align-items: center; }
+.check-row .mono { color: var(--muted); font-size: 0.85rem; }
+
+/* charts */
+.chart { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 16px; position: relative; min-width: 0; }
+.chart svg { display: block; width: 100%; height: auto; overflow: visible; }
+.chart .cap { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px 16px; margin-bottom: 8px; align-items: baseline; }
+.legend { display: flex; flex-wrap: wrap; gap: 14px; font-size: 0.85rem; color: var(--muted); }
+.legend i { display: inline-block; width: 14px; height: 4px; border-radius: 2px; vertical-align: middle; margin-right: 6px; }
+.axis text, .lbl { fill: var(--muted); font: 400 11px var(--f-mono); }
+.grid line { stroke: var(--line); }
+.tip {
+  position: absolute; pointer-events: none; background: var(--ink); color: var(--bg); font: 500 0.8rem/1.4 var(--f-mono);
+  padding: 6px 9px; border-radius: 6px; white-space: nowrap; z-index: 2; transform: translate(-50%, calc(-100% - 10px));
+}
+.cell { cursor: pointer; }
+.cell.sel { stroke: var(--ink); stroke-width: 2; }
+
+/* tables */
+.tbl { overflow-x: auto; border: 1px solid var(--line); border-radius: 12px; background: var(--panel); }
+table { border-collapse: collapse; width: 100%; font-size: 0.92rem; }
+th, td { text-align: left; padding: 9px 12px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { font: 500 0.72rem/1.2 var(--f-mono); letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); background: var(--panel-2); }
+td.n, th.n { text-align: right; font-family: var(--f-mono); font-variant-numeric: tabular-nums; white-space: nowrap; }
+tr:last-child td { border-bottom: 0; }
+tr.hl td { font-weight: 600; }
+.heatcell { text-align: center; font-family: var(--f-mono); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.heatcell small { display: block; font-size: 0.72rem; opacity: 0.8; }
+
+.two { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 18px; }
+.two > * { min-width: 0; }
+.note { border-left: 3px solid var(--warn); padding: 4px 0 4px 14px; color: var(--ink); }
+ul.plain { margin: 0; padding-left: 1.1em; display: grid; gap: 6px; max-width: 72ch; }
+footer { color: var(--muted); font-size: 0.85rem; border-top: 1px solid var(--line); padding-top: 16px; }
+@media (prefers-reduced-motion: no-preference) { .range .band, .range .tick { transition: left .2s, width .2s; } }
+</style>
+
+<div class="wrap">
+  <header>
+    <div class="brand"><b>W-</b>controller</div>
+    <h1>Water Usage Model</h1>
+    <p class="lede" id="intro"></p>
+    <div class="facts" id="facts"></div>
+  </header>
+
+  <section id="ask">
+    <div>
+      <div class="eyebrow">Ask the model</div>
+      <h2>What is normal at a given hour</h2>
+    </div>
+    <div class="ask">
+      <div class="controls">
+        <div class="field"><label for="day">Day</label>
+          <select id="day"><option value="mon">Monday</option><option value="tue">Tuesday</option>
+            <option value="wed">Wednesday</option><option value="thu">Thursday</option><option value="fri">Friday</option>
+            <option value="sat">Saturday</option><option value="sun">Sunday</option>
+            <option value="holiday">Public holiday</option></select></div>
+        <div class="field"><label for="hour">Hour</label><select id="hour"></select></div>
+        <div class="presets" aria-label="Examples">
+          <button type="button" data-p="thu,17,6,40">Thursday 17:00</button>
+          <button type="button" data-p="tue,3,15,90">15 min at 03:00</button>
+          <button type="button" data-p="sat,19,12,165">Bath, Saturday 19:00</button>
+          <button type="button" data-p="wed,11,25,350">Hose left open, 11:00</button>
+        </div>
+      </div>
+      <div class="ask-grid">
+        <div>
+          <h3>Expected in this hour</h3>
+          <div class="big" id="expL"></div>
+          <div class="range" id="rangeL" aria-hidden="true"><div class="track"></div></div>
+          <p class="muted" id="expText"></p>
+        </div>
+        <div>
+          <h3>Alarm thresholds</h3>
+          <ul class="limits" id="limits"></ul>
+        </div>
+        <div>
+          <h3>Check one flow</h3>
+          <div class="controls">
+            <div class="field"><label for="fdur">Minutes</label><input id="fdur" type="number" min="0.1" step="0.5" value="6"></div>
+            <div class="field"><label for="fvol">Liters</label><input id="fvol" type="number" min="0.1" step="1" value="40"></div>
+          </div>
+          <div class="verdict" id="verdict"></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="week">
+    <div>
+      <div class="eyebrow">Typical week</div>
+      <h2>Liters per hour the model expects</h2>
+    </div>
+    <p class="lede">Quiet nights, a morning block and an evening peak at 19-20 every day, strongest on Saturday. Click a cell to ask the model about that hour.</p>
+    <div class="chart"><svg id="heat" viewBox="0 0 1040 250" role="img" aria-label="Heatmap of expected liters per hour by weekday and hour"></svg></div>
+  </section>
+
+  <section id="forecast">
+    <div>
+      <div class="eyebrow">Hourly forecast</div>
+      <h2>How close the forecast gets</h2>
+    </div>
+    <p class="lede" id="fcText"></p>
+    <div class="chart">
+      <div class="cap"><h3 id="fcTitle"></h3>
+        <div class="legend"><span><i style="background:var(--actual)"></i>actual</span><span><i style="background:var(--accent)"></i>model mean</span><span><i style="background:var(--accent);opacity:.3;height:10px"></i>0-p90</span></div></div>
+      <svg id="fc" viewBox="0 0 1040 300" role="img" aria-label="One test week of hourly liters: actual versus forecast"></svg>
+    </div>
+    <div class="two">
+      <div class="tbl"><table id="tModels"></table></div>
+      <div class="tbl"><table id="tTest"></table></div>
+    </div>
+    <ul class="plain" id="fcNotes"></ul>
+  </section>
+
+  <section id="detect">
+    <div>
+      <div class="eyebrow">Anomaly detection</div>
+      <h2>When a flow stops being normal</h2>
+    </div>
+    <p class="lede">Every indicator is a one-sided limit on its own distribution for that hour and day, times a margin. The margins were set on 2025 so that all indicators together raise about one false alarm a month; at night far less is normal, so the night gets its own, smaller margin.</p>
+    <div class="chart">
+      <div class="cap"><h3 id="durTitle"></h3>
+        <div class="legend"><span><i style="background:var(--accent);height:10px"></i>alarm after (one flow)</span><span><i style="background:var(--actual)"></i>p99 of real flows</span></div></div>
+      <svg id="dur" viewBox="0 0 1040 280" role="img" aria-label="Duration alarm by hour"></svg>
+    </div>
+    <div class="tbl"><table id="tInd"></table></div>
+    <p class="note" id="honesty"></p>
+  </section>
+
+  <section id="leaks">
+    <div>
+      <div class="eyebrow">Evaluation</div>
+      <h2>Synthetic leaks in the test period</h2>
+    </div>
+    <p class="lede" id="leakText"></p>
+    <div class="tbl"><table id="tLeaks"></table></div>
+    <div class="two">
+      <div class="tbl"><table id="tExtra"></table></div>
+      <div class="tbl"><table id="tMahal"></table></div>
+    </div>
+    <ul class="plain">
+      <li>Short flows at shower rates (3-12 L/min for 5 min) look like a shower and mostly pass. A leak that keeps going is stopped by the device's own Tier 1 limit, which does not depend on this model.</li>
+      <li>The Mahalanobis score (one robust 2-D Gaussian of duration and volume per hour) at the same false-alarm budget barely detects anything: a long 12 L/min flow sits on the same line as a normal one.</li>
+    </ul>
+  </section>
+
+  <section id="real">
+    <div>
+      <div class="eyebrow">Real data</div>
+      <h2>Known events and alarms to review</h2>
+    </div>
+    <p class="lede">Long flows kept out of training as known events (pool filling, the burst hose), scored by the final detector. They still need labels in the private <span class="mono">server/model/known_events.csv</span>. Several ran 1222 s, the legacy firmware's 20 min cutoff.</p>
+    <div class="tbl"><table id="tKnown"></table></div>
+    <h3>Strongest alarms in 2026</h3>
+    <div class="tbl"><table id="tAlarms"></table></div>
+  </section>
+
+  <section id="data">
+    <div>
+      <div class="eyebrow">Data</div>
+      <h2>Six years of flows</h2>
+    </div>
+    <div class="chart">
+      <div class="cap"><h3>Water use per month (m³)</h3>
+        <div class="legend"><span><i style="background:var(--accent);height:10px"></i>observed</span><span><i style="background:var(--muted);opacity:.45;height:10px"></i>under 80 % of hours observed</span><span><i style="background:var(--warn);height:10px"></i>lawn watering 2023</span></div></div>
+      <svg id="monthly" viewBox="0 0 1040 260" role="img" aria-label="Monthly water use 2020-2026"></svg>
+    </div>
+    <ul class="plain" id="dataNotes"></ul>
+    <div class="tbl"><table id="tSplit"></table></div>
+  </section>
+
+  <footer id="foot"></footer>
+</div>
+
+<script id="report-data" type="application/json">/*DATA*/{}</script>
+<script>
+(() => {
+  const D = JSON.parse(document.getElementById("report-data").textContent);
+  const $ = (id) => document.getElementById(id);
+  const NS = 'http://www.w3.org/2000/svg';
+  const DAYS = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'];
+  const DAYN = { mon: 'Monday', tue: 'Tuesday', wed: 'Wednesday', thu: 'Thursday', fri: 'Friday', sat: 'Saturday', sun: 'Sunday', holiday: 'public holiday' };
+  const fmt = (v, d = 1) => (v == null || !isFinite(v)) ? '–' : Number(v).toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d });
+  const pct = (v, d = 0) => fmt(v * 100, d) + ' %';
+  const mins = (s) => s >= 90 ? fmt(s / 60, s >= 600 ? 0 : 1) + ' min' : fmt(s, 0) + ' s';
+  const row = (p, h) => D.table.find((e) => e.profile === p && e.hour === h);
+  const svg = (tag, attrs = {}, parent) => {
+    const el = document.createElementNS(NS, tag);
+    for (const [k, v] of Object.entries(attrs)) el.setAttribute(k, v);
+    if (parent) parent.appendChild(el);
+    return el;
+  };
+  const table = (el, head, rows, cls = []) => {
+    el.innerHTML = '<thead><tr>' + head.map((h, i) => `<th class="${cls[i] || ''}">${h}</th>`).join('') + '</tr></thead><tbody>' +
+      rows.map((r) => `<tr class="${r.hl ? 'hl' : ''}">` + (r.cells || r).map((c, i) => `<td class="${cls[i] || ''}">${c}</td>`).join('') + '</tr>').join('') + '</tbody>';
+  };
+  function tipper(chart) {
+    const tip = document.createElement('div');
+    tip.className = 'tip'; tip.hidden = true; chart.appendChild(tip);
+    return {
+      show(html, svgEl, x, y) {
+        const r = svgEl.getBoundingClientRect(), c = chart.getBoundingClientRect(), vb = svgEl.viewBox.baseVal;
+        tip.innerHTML = html; tip.hidden = false;
+        let px = r.left - c.left + x * r.width / vb.width;
+        px = Math.max(70, Math.min(c.width - 70, px));
+        tip.style.left = px + 'px'; tip.style.top = (r.top - c.top + y * r.height / vb.height) + 'px';
+      },
+      hide() { tip.hidden = true; },
+    };
+  }
+
+  // ---------- header
+  const thu17 = row('thu', 17), tue3 = row('tue', 3);
+  const syn = Object.fromEntries(D.synthetic.map((s) => [s.scenario + '|' + s.cell, s]));
+  const night = syn['tuesday 03:00|6 L/min x 15 min'];
+  $('intro').textContent = `A forecast of hourly water use and a leak detector, learned from ${D.flows.total.toLocaleString('en-US')} flows recorded by the anti-flood controller since June 2020. Offline analysis on hc-data: nothing here changes the valve or its protection tiers.`;
+  $('facts').innerHTML = [
+    [fmt(thu17.liters_mean, 0), 'L', 'expected on a Thursday at 17:00 (half of such hours below ' + fmt(thu17.liters_p50, 0) + ' L)'],
+    [fmt(tue3.alarm_flow_duration_s / 60, 0), 'min', 'until a night flow raises an alarm; every injected 15 min leak at 03:00 was caught'],
+    [fmt(D.fa.test, 2), '/ month', 'false alarms on 2026 data, all indicators together'],
+    [pct(D.test.coverage['0.9'], 0), '', 'of 2026 hours under the forecast p90 (target 90 %)'],
+  ].map(([v, u, k]) => `<div class="fact"><div class="v">${v}<small>${u}</small></div><div class="k">${k}</div></div>`).join('');
+
+  // ---------- ask the model
+  const hourSel = $('hour');
+  for (let h = 0; h < 24; h++) hourSel.add(new Option(String(h).padStart(2, '0') + ':00', h));
+  const state = { day: 'thu', hour: 17 };
+  function setAsk(day, hour, dur, vol) {
+    state.day = day; state.hour = hour;
+    $('day').value = day; hourSel.value = hour;
+    if (dur != null) $('fdur').value = dur;
+    if (vol != null) $('fvol').value = vol;
+    renderAsk(); renderDur(); markHeat();
+  }
+  function renderAsk() {
+    const e = row(state.day, state.hour);
+    const isNight = state.hour < 6;
+    $('expL').innerHTML = fmt(e.liters_mean, 1) + '<small>L expected</small>';
+    const max = Math.max(e.liters_p99 * 1.1, 5);
+    const r = $('rangeL');
+    r.querySelectorAll('.band,.tick').forEach((n) => n.remove());
+    const band = document.createElement('div'); band.className = 'band';
+    band.style.left = '0%'; band.style.width = (e.liters_p90 / max * 100) + '%'; r.appendChild(band);
+    for (const [k, lab] of [['liters_p50', 'p50'], ['liters_p90', 'p90'], ['liters_p99', 'p99']]) {
+      const t = document.createElement('div'); t.className = 'tick'; t.style.left = (e[k] / max * 100) + '%';
+      t.innerHTML = `<span>${lab} ${fmt(e[k], 0)}</span>`; r.appendChild(t);
+    }
+    $('expText').textContent = `${DAYN[state.day][0].toUpperCase() + DAYN[state.day].slice(1)} ${String(state.hour).padStart(2, '0')}:00. Half of such hours use less than ${fmt(e.liters_p50, 1)} L, 90 % less than ${fmt(e.liters_p90, 0)} L and 99 % less than ${fmt(e.liters_p99, 0)} L; about ${fmt(e.flows_mean, 1)} separate flows.`;
+    const lim = [
+      ['One flow lasts longer than', mins(e.alarm_flow_duration_s)],
+      ['One flow is bigger than', fmt(e.alarm_flow_liters, 0) + ' L'],
+      ['A flow runs faster than', fmt(e.alarm_flow_rate_lpm_above, 1) + ' L/min'],
+      ['A flow of 5+ min runs slower than', fmt(e.alarm_flow_rate_lpm_below, 2) + ' L/min'],
+      ['The hour uses more than', fmt(e.alarm_hour_liters, 0) + ' L'],
+    ];
+    if (isNight) lim.push(['The night (00-06) has more than', D.choice.night_flows.threshold + ' flows']);
+    $('limits').innerHTML = lim.map(([a, b]) => `<li><span>${a}</span><span>${b}</span></li>`).join('');
+    renderVerdict(e);
+  }
+  function renderVerdict(e) {
+    const dm = Math.max(parseFloat($('fdur').value) || 0, 0.01), vol = Math.max(parseFloat($('fvol').value) || 0, 0.01);
+    const ds = dm * 60, rate = vol / dm;
+    const checks = [
+      ['duration', mins(ds), ds > e.alarm_flow_duration_s, true, `limit ${mins(e.alarm_flow_duration_s)}`],
+      ['volume', fmt(vol, 0) + ' L', vol > e.alarm_flow_liters, true, `limit ${fmt(e.alarm_flow_liters, 0)} L`],
+      ['rate', fmt(rate, 1) + ' L/min', rate > e.alarm_flow_rate_lpm_above, ds >= 30, `limit ${fmt(e.alarm_flow_rate_lpm_above, 1)}`],
+      ['slow flow', fmt(rate, 1) + ' L/min', rate < e.alarm_flow_rate_lpm_below, ds >= 300, `below ${fmt(e.alarm_flow_rate_lpm_below, 2)}, 5+ min`],
+    ];
+    const any = checks.some((c) => c[3] && c[2]);
+    const first = checks.filter((c) => c[3] && c[2]);
+    let when = '';
+    if (first.length) {
+      const tDur = checks[0][2] ? e.alarm_flow_duration_s : Infinity;
+      const tVol = checks[1][2] ? e.alarm_flow_liters / rate * 60 : Infinity;
+      const tRate = checks[2][3] && checks[2][2] ? 30 : Infinity;
+      const tSlow = checks[3][3] && checks[3][2] ? 300 : Infinity;
+      when = ` Alarm after ${mins(Math.min(tDur, tVol, tRate, tSlow))}.`;
+    }
+    $('verdict').innerHTML =
+      `<div><span class="pill ${any ? 'alarm' : 'ok'}">${any ? 'ANOMALY' : 'NORMAL'}</span><span class="muted">${when}</span></div>` +
+      checks.map(([n, v, fired, applies, l]) => `<div class="check-row"><span>${n} <span class="mono">${v} · ${l}</span></span><span class="pill ${!applies ? 'na' : fired ? 'alarm' : 'ok'}">${!applies ? 'n/a' : fired ? 'alarm' : 'ok'}</span></div>`).join('');
+  }
+  $('day').addEventListener('change', (ev) => setAsk(ev.target.value, state.hour));
+  hourSel.addEventListener('change', (ev) => setAsk(state.day, +ev.target.value));
+  $('fdur').addEventListener('input', () => renderVerdict(row(state.day, state.hour)));
+  $('fvol').addEventListener('input', () => renderVerdict(row(state.day, state.hour)));
+  document.querySelectorAll('.presets button').forEach((b) => b.addEventListener('click', () => {
+    const [d, h, m, l] = b.dataset.p.split(',');
+    setAsk(d, +h, +m, +l);
+  }));
+
+  // ---------- heatmap
+  const heat = $('heat'), heatTip = tipper(heat.parentNode);
+  const HX = 44, HY = 8, CW = (1040 - HX) / 24, CH = 30;
+  const maxL = Math.max(...D.table.filter((e) => e.profile !== 'holiday').map((e) => e.liters_mean));
+  const heatCells = [];
+  DAYS.forEach((d, i) => {
+    svg('text', { x: HX - 8, y: HY + i * CH + CH / 2 + 4, 'text-anchor': 'end', class: 'lbl' }, heat).textContent = DAYN[d].slice(0, 3);
+    for (let h = 0; h < 24; h++) {
+      const e = row(d, h), a = Math.pow(e.liters_mean / maxL, 0.8);
+      const g = svg('g', {}, heat);
+      const r = svg('rect', { x: HX + h * CW + 1, y: HY + i * CH + 1, width: CW - 2, height: CH - 2, rx: 3, fill: 'var(--accent)', 'fill-opacity': (0.07 + 0.93 * a).toFixed(3), class: 'cell' }, g);
+      const t = svg('text', { x: HX + h * CW + CW / 2, y: HY + i * CH + CH / 2 + 4, 'text-anchor': 'middle', class: 'lbl', style: `fill:${a > 0.55 ? 'var(--on-accent)' : 'var(--ink)'};pointer-events:none` }, g);
+      t.textContent = fmt(e.liters_mean, 0);
+      r.addEventListener('mouseenter', () => heatTip.show(`${DAYN[d].slice(0, 3)} ${String(h).padStart(2, '0')}:00 · ${fmt(e.liters_mean, 1)} L · p90 ${fmt(e.liters_p90, 0)} L`, heat, HX + h * CW + CW / 2, HY + i * CH));
+      r.addEventListener('mouseleave', () => heatTip.hide());
+      r.addEventListener('click', () => { setAsk(d, h); $('ask').scrollIntoView({ behavior: 'smooth' }); });
+      heatCells.push({ d, h, r });
+    }
+  });
+  for (let h = 0; h < 24; h += 3) svg('text', { x: HX + h * CW + CW / 2, y: HY + 7 * CH + 18, 'text-anchor': 'middle', class: 'lbl' }, heat).textContent = h + ':00';
+  function markHeat() { heatCells.forEach((c) => c.r.classList.toggle('sel', c.d === state.day && c.h === state.hour)); }
+
+  // ---------- forecast week
+  const W = D.week, fc = $('fc'), fcTip = tipper(fc.parentNode);
+  const FX = 44, FY = 10, FW = 1040 - FX - 8, FH = 250;
+  const fmax = Math.ceil(Math.max(...W.actual, ...W.p90) / 50) * 50;
+  const fxs = (i) => FX + (i + 0.5) * FW / W.t.length, fys = (v) => FY + FH - v / fmax * FH;
+  const fg = svg('g', { class: 'grid' }, fc);
+  for (let v = 0; v <= fmax; v += 50) {
+    svg('line', { x1: FX, x2: FX + FW, y1: fys(v), y2: fys(v) }, fg);
+    svg('text', { x: FX - 8, y: fys(v) + 4, 'text-anchor': 'end', class: 'lbl' }, fc).textContent = v;
+  }
+  const step = (arr) => arr.map((v, i) => `${i ? 'L' : 'M'}${FX + i * FW / W.t.length},${fys(v)}H${FX + (i + 1) * FW / W.t.length}`).join('');
+  svg('path', { d: step(W.p90) + `V${fys(0)}H${FX}Z`, fill: 'var(--accent)', 'fill-opacity': 0.16 }, fc);
+  svg('path', { d: step(W.actual), fill: 'none', stroke: 'var(--actual)', 'stroke-width': 1.5 }, fc);
+  svg('path', { d: W.mean.map((v, i) => `${i ? 'L' : 'M'}${fxs(i)},${fys(v)}`).join(''), fill: 'none', stroke: 'var(--accent)', 'stroke-width': 2 }, fc);
+  W.t.forEach((t, i) => {
+    if (t.endsWith('T12')) {
+      const d = new Date(t.slice(0, 10) + 'T12:00:00');
+      svg('text', { x: fxs(i), y: FY + FH + 20, 'text-anchor': 'middle', class: 'lbl' }, fc).textContent = d.toLocaleDateString('en-GB', { weekday: 'short' });
+    }
+    if (t.endsWith('T00') && i) svg('line', { x1: FX + i * FW / W.t.length, x2: FX + i * FW / W.t.length, y1: FY, y2: FY + FH, stroke: 'var(--line)', 'stroke-dasharray': '2 3' }, fc);
+  });
+  const cross = svg('line', { y1: FY, y2: FY + FH, stroke: 'var(--muted)', 'stroke-width': 1, visibility: 'hidden' }, fc);
+  const hit = svg('rect', { x: FX, y: FY, width: FW, height: FH, fill: 'transparent' }, fc);
+  hit.addEventListener('mousemove', (ev) => {
+    const r = fc.getBoundingClientRect();
+    const x = (ev.clientX - r.left) * 1040 / r.width;
+    const i = Math.max(0, Math.min(W.t.length - 1, Math.floor((x - FX) / FW * W.t.length)));
+    cross.setAttribute('x1', fxs(i)); cross.setAttribute('x2', fxs(i)); cross.setAttribute('visibility', 'visible');
+    const d = new Date(W.t[i].slice(0, 10) + 'T12:00:00');
+    fcTip.show(`${d.toLocaleDateString('en-GB', { weekday: 'short' })} ${W.t[i].slice(11)}:00 · actual ${fmt(W.actual[i], 0)} · model ${fmt(W.mean[i], 0)} · p90 ${fmt(W.p90[i], 0)} L`, fc, fxs(i), FY + 10);
+  });
+  hit.addEventListener('mouseleave', () => { fcTip.hide(); cross.setAttribute('visibility', 'hidden'); });
+  $('fcTitle').textContent = W.title;
+
+  const T = D.test.liters, TF = D.test.flows;
+  const gain = 1 - T.best.poisson_deviance / T.b0.poisson_deviance;
+  $('fcText').textContent = `The model learns the weekly shape from the calendar (hour, weekday, Polish holidays, bridge days) and rescales it by how much water the house actually used over the previous ${D.best.level_days} days. On 2026 data its error is ${pct(gain)} lower than the plain average per hour of week, and the daily error drops from ${fmt(T.b0.daily_mae, 0)} to ${fmt(T.best.daily_mae, 0)} L.`;
+  table($('tModels'), ['Model on 2025 (validation)', 'Window', 'Level', 'Deviance'],
+    D.models.slice(0, 7).map((m, i) => ({ hl: i === 0, cells: [m.model.replace(/ \(.*\)/, ''), m.window, m.level ? m.level + ' d' : 'off', fmt(m.dev, 2)] })),
+    ['', '', 'n', 'n']);
+  table($('tTest'), ['2026 (test)', 'Deviance', 'Day MAE', 'Mean pred / actual'], [
+    ['Hour-of-week average', fmt(T.b0.poisson_deviance, 2), fmt(T.b0.daily_mae, 0) + ' L', `${fmt(T.b0.mean_predicted, 1)} / ${fmt(T.b0.mean_actual, 1)}`],
+    { hl: true, cells: ['Chosen model', fmt(T.best.poisson_deviance, 2), fmt(T.best.daily_mae, 0) + ' L', `${fmt(T.best.mean_predicted, 1)} / ${fmt(T.best.mean_actual, 1)}`] },
+    ['Model + lags (comparison)', fmt(T.with_lags.poisson_deviance, 2), fmt(T.with_lags.daily_mae, 0) + ' L', `${fmt(T.with_lags.mean_predicted, 1)} / ${fmt(T.with_lags.mean_actual, 1)}`],
+    ['Flows / hour: average', fmt(TF.b0.poisson_deviance, 2), fmt(TF.b0.daily_mae, 0), `${fmt(TF.b0.mean_predicted, 1)} / ${fmt(TF.b0.mean_actual, 1)}`],
+    ['Flows / hour: chosen', fmt(TF.best.poisson_deviance, 2), fmt(TF.best.daily_mae, 0), `${fmt(TF.best.mean_predicted, 1)} / ${fmt(TF.best.mean_actual, 1)}`],
+  ], ['', 'n', 'n', 'n']);
+  $('fcNotes').innerHTML = [
+    `Most of the gain is the level correction: use grows about 10 % a year and the plain average under-predicts 2026 by ${pct(1 - T.b0.mean_predicted / T.b0.mean_actual)}.`,
+    'One hour of a household is mostly noise around the weekly shape. The model knows the shape, not whether someone showers at 17:00 or 17:40, so the error per hour barely moves.',
+    'The season makes every candidate worse once the 2023 lawn watering is left out, as expected.',
+    `Intervals hold: ${pct(D.test.coverage['0.9'], 1)} of 2026 hours fall under p90 and ${pct(D.test.coverage['0.99'], 1)} under p99.`,
+  ].map((t) => `<li>${t}</li>`).join('');
+
+  // ---------- duration alarm by hour (follows the selected day)
+  const dur = $('dur'), durTip = tipper(dur.parentNode);
+  function renderDur() {
+    dur.innerHTML = '';
+    const prof = state.day;
+    const lim = [...Array(24)].map((_, h) => row(prof, h).alarm_flow_duration_s / 60);
+    const p99 = D.p99_duration_min;
+    const X0 = 44, Y0 = 10, PW = 1040 - X0 - 8, PH = 230;
+    const top = Math.ceil(Math.max(...lim, ...p99) / 10) * 10;
+    const ys = (v) => Y0 + PH - v / top * PH, bw = PW / 24;
+    const g = svg('g', { class: 'grid' }, dur);
+    for (let v = 0; v <= top; v += 10) {
+      svg('line', { x1: X0, x2: X0 + PW, y1: ys(v), y2: ys(v) }, g);
+      svg('text', { x: X0 - 8, y: ys(v) + 4, 'text-anchor': 'end', class: 'lbl' }, dur).textContent = v;
+    }
+    lim.forEach((v, h) => {
+      const x = X0 + h * bw + bw * 0.18, w = bw * 0.64, y = ys(v);
+      const p = svg('path', { d: `M${x},${ys(0)}V${y + 4}Q${x},${y} ${x + 4},${y}H${x + w - 4}Q${x + w},${y} ${x + w},${y + 4}V${ys(0)}Z`, fill: 'var(--accent)', 'fill-opacity': h === state.hour ? 1 : 0.8 }, dur);
+      const hitR = svg('rect', { x: X0 + h * bw, y: Y0, width: bw, height: PH, fill: 'transparent', style: 'cursor:pointer' }, dur);
+      hitR.addEventListener('mouseenter', () => durTip.show(`${String(h).padStart(2, '0')}:00 · alarm after ${fmt(v, 1)} min · p99 real ${fmt(p99[h], 1)} min`, dur, X0 + h * bw + bw / 2, ys(v)));
+      hitR.addEventListener('mouseleave', () => durTip.hide());
+      hitR.addEventListener('click', () => setAsk(state.day, h));
+      if (h % 3 === 0) svg('text', { x: X0 + h * bw + bw / 2, y: Y0 + PH + 18, 'text-anchor': 'middle', class: 'lbl' }, dur).textContent = h + ':00';
+    });
+    svg('path', { d: p99.map((v, h) => `${h ? 'L' : 'M'}${X0 + h * bw + bw / 2},${ys(v)}`).join(''), fill: 'none', stroke: 'var(--actual)', 'stroke-width': 2, style: 'pointer-events:none' }, dur);
+    p99.forEach((v, h) => svg('circle', { cx: X0 + h * bw + bw / 2, cy: ys(v), r: 4, fill: 'var(--actual)', stroke: 'var(--panel)', 'stroke-width': 2, style: 'pointer-events:none' }, dur));
+    svg('text', { x: X0 + 3 * bw, y: ys(lim[3]) - 8, 'text-anchor': 'middle', class: 'lbl', style: 'fill:var(--ink)' }, dur).textContent = `00-06: ${fmt(lim[3], 0)} min`;
+    $('durTitle').textContent = `Duration limit for one flow, ${DAYN[prof]} (choose another day above)`;
+  }
+  const IND = [
+    ['duration', 'Flow longer than usual: tap or hose left open, a leak at night'],
+    ['volume', 'One flow bigger than usual'],
+    ['rate_high', 'Flow faster than usual (burst)'],
+    ['rate_low', 'Slow flow of 5 min or more: drip, cistern valve'],
+    ['hour_liters', 'Hour total above usual: a hose with pauses'],
+  ];
+  const q = (c) => `p${+(c.alpha * 100).toFixed(1)} × ${fmt(c.margin, 2)}`;
+  table($('tInd'), ['Indicator', 'Catches', 'Night 00-06', 'Day', 'False alarms / month (2026)'],
+    IND.map(([k, d]) => [`<span class="mono">${k}</span>`, d, q(D.choice[k].night), q(D.choice[k].day), fmt(D.fa.test_by[k], 2)])
+      .concat([['<span class="mono">night_flows</span>', 'Many small flows in one night: cistern or float valve', `> ${D.choice.night_flows.threshold} flows`, '–', fmt(D.fa.test_by.night_flows, 2)]]),
+    ['', '', 'n', 'n', 'n']);
+  $('honesty').innerHTML = '<b>Test numbers for the detector are somewhat optimistic.</b> Three choices were made after seeing 2026 results: the 3 min and 20 L floors for a single flow (without them the night limit fell to about 70 s and gave 1.7 false alarms a month), the 5 min minimum for the slow-flow indicator, and keeping two bands of the day instead of three (the evening band looked the same on 2025 and overfit on 2026). The hourly forecast was chosen on 2025 alone.';
+
+  // ---------- synthetic leaks
+  const rates = [1, 3, 6, 12, 35], mm = [5, 15, 30, 60];
+  $('leakText').textContent = `There are no labelled leaks, so leaks were injected at random times into the ${fmt(D.fa.months_test, 1)} months of 2026 and merged with real flows the way the firmware joins them (a pause under 5 s). 200 per cell. Each cell: share caught, and the median minutes from the leak's start to the first alarm.`;
+  const shade = (r) => `background:color-mix(in srgb, var(--accent) ${Math.round(r * 70)}%, transparent);${r > 0.7 ? 'color:var(--on-accent)' : ''}`;
+  $('tLeaks').innerHTML = '<thead><tr><th>Leak rate</th>' + mm.map((m) => `<th class="n">${m} min</th>`).join('') + '</tr></thead><tbody>' +
+    rates.map((r) => `<tr><td class="mono">${r} L/min</td>` + mm.map((m) => {
+      const s = syn[`leak|${r} L/min x ${m} min`];
+      return `<td class="heatcell" style="${shade(s.recall)}">${pct(s.recall)}<small>${s.median_delay_min == null ? '–' : fmt(s.median_delay_min, 1) + ' min'}</small></td>`;
+    }).join('') + '</tr>').join('') + '</tbody>';
+  table($('tExtra'), ['Scenario', 'Caught', 'After (median)'], [
+    ['6 L/min for 15 min at 03:00 (every Tuesday)', syn['tuesday 03:00|6 L/min x 15 min']],
+    ['Cistern refilling 0.5-2 L every 5-20 min, 00-06', syn['cistern|0.5-2 L every 5-20 min, 00-06']],
+    ['Drip 0.05-0.3 L/min for 3-6 h', syn['drip|0.05-0.3 L/min for 3-6 h']],
+  ].map(([n, s]) => [n, pct(s.recall), fmt(s.median_delay_min, 1) + ' min']), ['', 'n', 'n']);
+  const mh = D.mahalanobis.filter((c) => ['1 L/min x 15 min', '6 L/min x 15 min', '12 L/min x 30 min', '6 L/min x 60 min'].includes(c.cell) || c.scenario === 'drip' || c.scenario === 'tuesday 03:00');
+  table($('tMahal'), ['2025 leak', 'Mahalanobis', 'Per-indicator'],
+    mh.map((c) => [(c.scenario === 'leak' ? '' : c.scenario + ' ') + c.cell, pct(c.recall_mahalanobis), pct(c.recall_flow_indicators)]), ['', 'n', 'n']);
+
+  // ---------- known events and alarms
+  const other = D.known.filter((e) => !(e.start >= '2023-03' && e.start < '2023-06-27'));
+  const lawn = D.known.filter((e) => !other.includes(e));
+  table($('tKnown'), [D.known.every((e) => e.start.length <= 7) ? 'Month' : 'Start', 'Duration', 'Liters', 'L/min', 'Flagged by', 'Alarm after'],
+    other.map((e) => [e.start.slice(0, 16), fmt(e.duration_s / 60, 0) + ' min', fmt(e.liters, 0), fmt(e.rate_lpm, 1),
+      e.indicators.length ? e.indicators.join(', ') : '<span class="pill alarm">missed</span>', e.delay_min ? fmt(e.delay_min, 1) + ' min' : '–']),
+    ['mono', 'n', 'n', 'n', '', 'n']);
+  table($('tAlarms'), ['When', 'Indicator', 'Detail'], D.alarms.map((a) => [a.ts.slice(0, 16), `<span class="mono">${a.indicator}</span>`,
+    a.duration_s != null ? `${fmt(a.duration_s / 60, 1)} min, ${fmt(a.liters, 0)} L, ${fmt(a.rate_lpm, 1)} L/min` : `${fmt(a.value, 0)} vs limit ${fmt(a.threshold, 0)}`]), ['mono', '', '']);
+  document.querySelector('#real .lede').insertAdjacentText('beforeend', ` Lawn watering in 2023: ${lawn.filter((e) => e.indicators.length).length} of ${lawn.length} long flows flagged; the misses are 15-30 min flows at 20-22 h, where evening baths make long flows normal.`);
+
+  // ---------- monthly
+  const mo = $('monthly'), moTip = tipper(mo.parentNode);
+  const M = D.monthly, MX = 44, MY = 10, MW = 1040 - MX - 8, MH = 210;
+  const mtop = Math.ceil(Math.max(...M.map((m) => m.m3)) / 5) * 5;
+  const mys = (v) => MY + MH - v / mtop * MH, mbw = MW / M.length;
+  const mg = svg('g', { class: 'grid' }, mo);
+  for (let v = 0; v <= mtop; v += 5) {
+    svg('line', { x1: MX, x2: MX + MW, y1: mys(v), y2: mys(v) }, mg);
+    svg('text', { x: MX - 8, y: mys(v) + 4, 'text-anchor': 'end', class: 'lbl' }, mo).textContent = v;
+  }
+  M.forEach((m, i) => {
+    const x = MX + i * mbw + 1, w = Math.max(mbw - 2, 1), y = mys(m.m3);
+    const fill = m.lawn ? 'var(--warn)' : m.cover < 0.8 ? 'var(--muted)' : 'var(--accent)';
+    svg('rect', { x, y, width: w, height: Math.max(mys(0) - y, 0), rx: 1.5, fill, 'fill-opacity': m.cover < 0.8 && !m.lawn ? 0.45 : 1 }, mo);
+    const hr = svg('rect', { x: MX + i * mbw, y: MY, width: mbw, height: MH, fill: 'transparent' }, mo);
+    hr.addEventListener('mouseenter', () => moTip.show(`${m.m} · ${fmt(m.m3, 1)} m³ · ${pct(m.cover)} of hours observed`, mo, MX + i * mbw + mbw / 2, y));
+    hr.addEventListener('mouseleave', () => moTip.hide());
+    if (m.m.endsWith('-01')) svg('text', { x: MX + i * mbw, y: MY + MH + 18, class: 'lbl' }, mo).textContent = m.m.slice(0, 4);
+  });
+  $('dataNotes').innerHTML = [
+    `${D.flows.total.toLocaleString('en-US')} flows from ${D.flows.first} to ${D.flows.last}: ${D.flows.legacy.toLocaleString('en-US')} from the legacy firmware (via BigQuery), ${(D.flows.total - D.flows.legacy).toLocaleString('en-US')} from firmware 3.x.`,
+    `Telemetry gaps longer than 24 h (${D.masked.unknown.toLocaleString('en-US')} hours, mostly 2022) are masked, never counted as zero use.`,
+    'The legacy firmware\'s counter wrap added about 80 L to some long flows. Any legacy flow averaging more than 26 L/min (firmware 3.x never does) loses the fewest wraps that bring it under: 443 flows, 37 m³. Durations and counts are not affected.',
+    'Flows under 0.1 L are left out of counts and per-flow models: firmware 3.2.1+ does not publish them, while 27 % of legacy flows are that small.',
+    'The hourly grid runs in UTC with Warsaw local-time features, so the change to and from summer time neither drops nor doubles an hour.',
+  ].map((t) => `<li>${t}</li>`).join('');
+  const use = { train: 'fitting candidates', validation: 'choosing the model, training window, level correction and all alarm thresholds', test: 'one final check, after refitting on train + validation' };
+  table($('tSplit'), ['Set', 'Period', 'Usable hours', 'Used for'],
+    Object.entries(D.splits).map(([k, [a, b]]) => [k, `${a} – ${b}`, D.rows[k].toLocaleString('en-US'), use[k]]), ['mono', 'mono', 'n', '']);
+
+  $('foot').innerHTML = `Generated ${D.generated} by <span class="mono">server/model/report.py</span> from the outputs of <span class="mono">train.py</span> and <span class="mono">anomaly.py</span>. Details and method: <span class="mono">docs/USAGE_MODEL.md</span>.`;
+
+  setAsk('thu', 17);
+})();
+</script>

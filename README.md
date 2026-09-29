@@ -137,8 +137,11 @@ previous cloud setup (269 518 flows since June 2020) was imported with a correct
   <img src="docs/img/usage-by-hour-light.png" alt="Bar chart of average liters per hour of day in 2023-2025: under 1 L per hour between 1:00 and 6:00, about 20 L per hour in the morning, a peak of 54 L at 19:00">
 </picture>
 
-The quiet nights make the anomaly idea concrete: water running at 3 am is rarely legitimate. Learning such baselines
-from this history and feeding the thresholds back to Tier 2 is the next step.
+The quiet nights make the anomaly idea concrete: water running at 3 am is rarely legitimate. A model trained on this
+history ([`docs/USAGE_MODEL.md`](docs/USAGE_MODEL.md), code in `server/model/`) forecasts usage per hour from the
+calendar and sets per-hour alarm thresholds at about one false alarm a month: at night a single flow alarms after
+3 minutes, and injected leaks of 15 minutes or more are caught in 88-100 % of cases. Feeding the night thresholds back to
+Tier 2 is the next step.
 
 ## Hardware
 

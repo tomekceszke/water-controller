@@ -21,3 +21,13 @@ jobs:
         with:
           python-version: "3.12"
       - run: pip install paho-mqtt==2.1.* && python -m unittest server/ingest/test_wc_ingest.py
+
+  model:
+    name: Usage model unit tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -r server/model/requirements.txt && python -m unittest server/model/test_model.py

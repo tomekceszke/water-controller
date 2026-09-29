@@ -1,0 +1,18 @@
+# Format of known_events.csv (gitignored: exact dates of household events). Local time, end exclusive.
+# kind: lawn | pool | hose | drip | unlabelled. The dates here are placeholders at month level.
+start_local,end_local,kind,note
+2023-03-14 00:00:00,2023-06-27 00:00:00,lawn,watering while establishing a 600 m2 lawn (one-off)
+2021-07-01 12:00:00,2021-07-01 12:20:23,unlabelled,1222 s 302 L 14.8 L/min (legacy 20 min cutoff)
+2023-07-01 12:00:00,2023-07-01 12:20:51,unlabelled,1250 s 656 L 31.5 L/min
+2023-07-01 12:00:00,2023-07-01 12:28:40,unlabelled,1719 s 1016 L 35.4 L/min
+2023-12-01 12:00:00,2023-12-01 12:20:23,unlabelled,1222 s 317 L 15.5 L/min (legacy 20 min cutoff)
+2024-01-01 12:00:00,2024-01-01 12:17:52,unlabelled,1071 s 291 L 16.3 L/min
+2024-04-01 12:00:00,2024-04-01 12:21:25,unlabelled,1284 s 1.1 L 0.1 L/min (drip?)
+2024-04-01 12:00:00,2024-04-01 12:21:18,unlabelled,1277 s 662 L 31.1 L/min
+2024-06-01 12:00:00,2024-06-01 12:16:46,unlabelled,1005 s 26 L 1.6 L/min
+2024-06-01 12:00:00,2024-06-01 12:28:27,unlabelled,1706 s 130 L 4.6 L/min
+2024-06-01 12:00:00,2024-06-01 12:16:30,unlabelled,989 s 603 L 36.6 L/min
+2025-07-01 12:00:00,2025-07-01 12:20:23,unlabelled,1222 s 349 L 17.2 L/min (legacy 20 min cutoff)
+2025-07-01 12:00:00,2025-07-01 12:20:23,unlabelled,1222 s 804 L 39.5 L/min (legacy 20 min cutoff)
+2025-08-01 12:00:00,2025-08-01 12:15:42,unlabelled,941 s 222 L 14.1 L/min
+2026-08-01 12:00:00,2026-08-01 12:15:56,unlabelled,955 s 165 L 10.4 L/min
