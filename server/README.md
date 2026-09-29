@@ -8,7 +8,8 @@ esp-mqtt outbox (bounded, 1 h) loses what does not fit.
 ```
 ESP32 --MQTT QoS1 water/<mac>/{flow,sample,valve,rule,alert,status}--> Mosquitto :1883
                                                                           └─ wc-ingest (persistent session, ack after commit)
-                                                                               └─ PostgreSQL water
+                                                                               └─ PostgreSQL water ── wc-model-score (hourly)
+ESP32 <--retained water/<mac>/config (learned limits)-- Mosquitto <-- publish.py (workstation)
 ```
 
 ## Shared broker
@@ -32,7 +33,8 @@ ESP32 --MQTT QoS1 water/<mac>/{flow,sample,valve,rule,alert,status}--> Mosquitto
 |---|---|
 | `flow_event` | one row per continuous flow: start, stop, pulses, calibration, max L/min, closed by protection; history from BigQuery with `device = 'bigquery'` |
 | `flow_sample` | pulses every 10 s while water flows (profile of long flows) |
-| `valve_event`, `rule_event`, `alert_event` | valve changes with reason, Tier 2 triggers, alerts |
+| `valve_event`, `rule_event`, `alert_event` | valve changes with reason, Tier 2 triggers (learned limits add `measured`, `usual_limit`), alerts |
+| `model_alert` | hourly totals over the learned limit (`score.py`), one row per hour and kind |
 | `device_status` | last `online`/`offline` (LWT) |
 | `setting` | `default_pulses_per_liter` for rows without calibration |
 
@@ -46,7 +48,8 @@ Views (Europe/Warsaw local time):
 
 Roles:
 - `wc_ingest`: peer auth, insert.
-- `wc_read`: password, SELECT from 192.168.11.0/24 (DataGrip, Grafana).
+- `wc_read`: password, SELECT from 192.168.11.0/24 (DataGrip, Grafana, model training on a workstation).
+- `wc_model`: peer auth, SELECT, INSERT on `model_alert` (hourly check).
 
 ## History from GCP
 
@@ -66,18 +69,22 @@ server/migrate/import.sh                                          # idempotent
 
 ## Usage model (`wc-model`)
 
-Code in `model/` ([README](model/README.md)), its own venv `/opt/wc-server/model-venv`, state (flow cache, models,
-thresholds) in `/var/lib/wc-model`, database access as role `wc_model` over the local socket (peer auth, SELECT plus
-INSERT on `model_alert`).
+Training runs on a workstation (the LXC has 1 CPU and 1 GB; training takes about 2 minutes on a laptop-class
+machine and would compete with ingest here). `model/publish.py` sends the limits as the retained `water/<mac>/config`
+and copies `thresholds.json` to `/var/lib/wc-model/out/`. The server keeps only the hourly check, in a small venv
+`/opt/wc-server/model-venv` (`model/requirements-score.txt`), as role `wc_model` over the local socket.
 
 | Unit | When | What |
 |---|---|---|
-| `wc-model-train.timer` | 1st of the month, 04:10 | `retrain.sh`: refresh the cache, `train.py`, `anomaly.py`, `publish.py` (retained `water/<mac>/config`, held back and ntfy when the guard fails) |
-| `wc-model-score.timer` | hourly at :05 | `score.py`: liters per hour against the learned hour limit (holidays included); `model_alert` + ntfy |
+| `wc-model-score.timer` | hourly at :05 | `score.py`: liters per hour against the learned hour limit (holidays included); `model_alert` + ntfy (`NTFY_URL`) |
+
+Retraining (every few months, from the repository root):
 
 ```sh
-ssh root@192.168.11.16 systemctl start wc-model-train.service     # first run after deploy (a few minutes)
-ssh root@192.168.11.16 journalctl -u wc-model-train -u wc-model-score -n 50
+R="uv run --with-requirements server/model/requirements.txt"
+$R server/model/data.py --refresh && $R server/model/train.py && $R server/model/anomaly.py
+$R server/model/publish.py --dry-run     # check size and guard
+$R server/model/publish.py               # retained config + thresholds.json to hc-data
 ```
 
 ## Operations
@@ -89,8 +96,5 @@ ssh root@192.168.11.16 journalctl -u wc-ingest -f
 ssh root@192.168.11.16 'runuser -u postgres -- psql water'
 uv run --with paho-mqtt python -m unittest server/ingest/test_wc_ingest.py
 ```
-
-Usage model and anomaly thresholds (offline, read-only on `water`): [`server/model/`](model/README.md), results in
-[`docs/USAGE_MODEL.md`](../docs/USAGE_MODEL.md).
 
 Backups: `wc-pg-backup.timer`, nightly `pg_dump -Fc water` into `/var/backups/water`, kept for 14 days.

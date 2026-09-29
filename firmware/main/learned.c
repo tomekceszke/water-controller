@@ -119,9 +119,10 @@ learned_decision_t learned_update(learned_state_t *st, const learned_config_t *c
         }
     }
     const uint32_t elapsed_s = (uint32_t) ((s->now_ms - st->start_ms) / 1000);
-    if (!st->dur_done && elapsed_s > c->dur_s[st->how]) {
+    const uint32_t dur_limit = learned_dur_limit(c, st->how, s->max_dur_s);
+    if (!st->dur_done && elapsed_s > dur_limit) {
         st->dur_done = true;
-        return (learned_decision_t) {LEARNED_DURATION, elapsed_s, c->dur_s[st->how], (int8_t) hour};
+        return (learned_decision_t) {LEARNED_DURATION, elapsed_s, dur_limit, (int8_t) hour};
     }
     const uint64_t limit_pulses = (uint64_t) c->vol_l[st->how] * s->pulses_per_liter;
     if (!st->vol_done && st->pulses > limit_pulses) {

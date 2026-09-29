@@ -19,7 +19,7 @@ The plan is in `~/.claude/plans/cele-odnosnie-tego-projektu-rosy-moler.md`. Stag
 - [x] 4 hc-data (deployed 2026-09-15, history imported; Grafana not done)
 - [x] 5 migration (production 2026-09-15 23:02)
 - [x] 6 docs/portfolio (README, LICENSE, CI)
-- [~] 7 anomaly model (offline model + report 2026-09-29: `server/model/`, `docs/USAGE_MODEL.md`; learned limits in firmware 3.4.0 + hc-data service written, not deployed yet)
+- [~] 7 anomaly model (offline model + report 2026-09-29: `server/model/`, `docs/USAGE_MODEL.md`; learned limits in firmware 3.4.0 (not on hardware yet), hourly check deployed on hc-data)
 - [ ] 8 GCP shutdown
 
 ## Protection tiers (design rule for every change)
@@ -102,7 +102,7 @@ main/
   config/       config.h (committed), credentials.h (never committed)
 web/            app.html (tabs Live/History/Settings on the home-idf app shell, vanilla, ~14 KB gzip), manifest, icon
                 (the sign-in page comes from home-idf: home_idf_login_page() in main/CMakeLists.txt)
-test/           host unit tests (tier0, tier1, rules)
+test/           host unit tests (tier0, tier1, rules, learned)
 migrator/       one-shot OTA image (home-idf hi_migrator); build with tools/build_release.sh [--spare]
 partitions.csv  ota_0 2M / ota_1 1.875M (legacy ota_1 offset kept for the migrator) / coredump
 ```
@@ -223,10 +223,14 @@ tools/dev_proxy.py <device-ip> --port 8765   # serves firmware/web/app.html rend
   - still to do: gate (`g-controller`), heating and floor-heating when they move to home-idf.
 - [~] Stage 7 anomaly model: offline part done (hourly forecast, thresholds, synthetic-leak evaluation). Online part
   (owner decisions 2026-09-29: device + server, **notify only**, retained MQTT config, four UI pieces) written:
-  home-idf v0.1.14 `hi_mqtt_subscribe`, firmware 3.4.0 (`learned.c`, `/api/learned`, app), hc-data `wc-model`
-  (monthly `retrain.sh` + guarded `publish.py`, hourly `score.py`, table `model_alert`). Still to do:
-  - `MQTT_MODEL_PASS` in `server/secrets.env`, `server/deploy.sh`, first `wc-model-train.service` run;
+  home-idf v0.1.14 `hi_mqtt_subscribe`, firmware 3.4.0 (`learned.c`, `/api/learned`, app), hc-data `wc-model-score`
+  (hourly `score.py`, table `model_alert`). Training runs on the workstation, not on hc-data (1 CPU / 1 GB; owner
+  decision 2026-09-30): `data.py --refresh`, `train.py`, `anomaly.py`, then `publish.py` (guarded; retained config +
+  `thresholds.json` copied to hc-data). Thresholds: per-hour maximum of normal flows ±1 h × one shared margin tuned on
+  validation (x1.5), floors 3 min / 20 L; the device caps the duration limit at 3/4 of the Tier 1 limit. Replaced
+  boosted quantiles × a margin per band after the owner saw 39 min / 1277 L for Monday 19:00. Still to do:
   - spare board test of 3.4.0 with a hand-published config, then production OTA (owner OK);
+  - `NTFY_URL` in `server/secrets.env` for the hourly check (empty: alarms only in `model_alert`);
   - label the `unlabelled` rows in the private `server/model/known_events.csv` (pool / hose).
   - `learned_notify` lives in NVS `wc_learned`, not in `settings_t` (its blob has a fixed size: a new field would
     reset the stored settings).

@@ -38,6 +38,28 @@ class HourOfWeek:
         return self.table_[_group(X, self.holidays_as_sunday)]
 
 
+class HourMax:
+    """Largest value of the target seen at this local hour or the neighbouring ones (wrapping midnight).
+
+    The alarm thresholds are built on it ("longer than any normal flow at this time of day, plus a margin"): a
+    boosted high quantile times one margin per band gave 39 min at 19:00, because the margin had to cover the worst
+    hour. Hours with no data take the lowest hour's value (floors apply on top).
+    """
+
+    def __init__(self, spread=1):
+        self.spread = spread
+
+    def fit(self, X, y, w=None):
+        per_hour = pd.Series(np.asarray(y, dtype=float)).groupby(X["hour"].to_numpy()).max().reindex(range(24))
+        per_hour = per_hour.fillna(per_hour.min())
+        v = per_hour.to_numpy()
+        self.table_ = np.array([max(v[(h + d) % 24] for d in range(-self.spread, self.spread + 1)) for h in range(24)])
+        return self
+
+    def predict(self, X):
+        return self.table_[np.asarray(X["hour"], dtype=int)]
+
+
 class PoissonGLM:
     """M1: Poisson GLM on one-hot hour of week (holidays as Sunday), bridge flag and optional season terms."""
 

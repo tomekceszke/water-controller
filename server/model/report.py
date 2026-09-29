@@ -401,43 +401,48 @@ def render(mh, ma, th, df, flows):
     w("")
     w("## Anomaly detection")
     w("")
-    w("Each indicator is a one-sided threshold on its own conditional distribution (quantile gradient boosting on "
-      "hour, weekday and holiday), times a margin. That keeps every alarm explainable (\"flow of 14 min where 3 min "
-      "is the limit at this hour\") and the thresholds portable to the device.")
+    w("Each indicator is a one-sided threshold that depends on the local hour. For the upper ones it is simple: "
+      "**the longest (biggest, fastest) normal flow ever seen at this hour or the neighbouring ones, times one "
+      "shared margin**, with floors of 3 min and 20 L for one flow. The slow-flow indicator uses a low quantile "
+      "(gradient boosting on hour, weekday, holiday). Every alarm stays explainable (\"a 14 min flow where 12 min is "
+      "the longest normal one at this hour\") and the thresholds are small enough to live on the device.")
     w("")
-    w("| Indicator | Catches | Night (00-06) | Day |")
-    w("|---|---|---|---|")
+    m = ch["duration"]["day"]["margin"]
+    w("| Indicator | Catches | Threshold |")
+    w("|---|---|---|")
     desc = {"duration": "flow longer than usual: tap or hose left open, a leak at night",
             "volume": "one flow bigger than usual", "rate_high": "flow faster than usual (burst)",
-            "rate_low": "slow long flow (flows >= 5 min): drip, running cistern valve",
             "hour_liters": "hour total above usual: a hose with pauses"}
     for ind, d in desc.items():
-        c = ch[ind]
-        w(f"| {ind} | {d} | p{100 * c['night']['alpha']:g} x {c['night']['margin']:.2f} | "
-          f"p{100 * c['day']['alpha']:g} x {c['day']['margin']:.2f} |")
+        w(f"| {ind} | {d} | largest normal value at this hour ±1 h x {m:.2f} |")
+    c = ch["rate_low"]
+    w(f"| rate_low | slow long flow (flows >= 5 min): drip, running cistern valve | p{100 * c['day']['alpha']:g} / "
+      f"{c['day']['margin']:.2f} |")
     w(f"| night_flows | many small flows in one night: cistern or float valve | more than {ch['night_flows']['threshold']} "
-      "flows 00-06 | - |")
+      "flows 00-06 |")
     w("")
     w("How the thresholds were set:")
     w("")
-    w("- A false-alarm budget of about one a month in total, split between indicators and between night and day "
-      "(night 25 %), spent on the **validation** year: for each indicator the most sensitive quantile and margin "
-      "that stays within its share.")
-    w("- Floors of 3 min and 20 L for one flow. Validation holds only ~120 night flows, and without the floor the night "
-      "limit fell to ~70 s and gave 1.7 false alarms a month on test.")
-    w("- The quantile models learn from normal flows only (known events out), since 2024 (validation chose that window "
-      "and no season).")
-    w("- The day margin is wide (about 7x the p99) because of evening baths: 10-14 min flows of ~165 L at 14.5 L/min "
-      "are normal at 18-21 h. A separate evening band was tried and dropped (below).")
+    w(f"- One margin for all four per-hour maxima: the smallest (in steps of 0.05) whose alarms stay within about "
+      f"0.75 a month on the **validation** year, with maxima taken from the training data only. It came out at "
+      f"**x{m:.2f}**. On the device the maxima come from all data since 2024, so the limits there are, if anything, "
+      "a little quieter.")
+    w("- The slow-flow indicator and the night count share the rest of the budget (about one alarm a month in total).")
+    w("- Floors of 3 min and 20 L for one flow: a year of nights holds only ~120 flows, too few for a finer limit.")
+    w("- On the device the duration limit is also capped at 3/4 of the Tier 1 shut-off limit (15 min at the default "
+      "20 min), so a notification always comes before the valve closes.")
+    w("- What the data allows: since 2024 no normal flow ran longer than 14.2 min at any hour, and evening baths "
+      "(10-14 min, ~165 L) are normal. At about one false alarm a month a daytime limit therefore cannot be much "
+      "tighter than 15-20 min; the learned limits earn their keep at night and in the quiet hours.")
     w("")
-    w("**Honesty note.** Three choices were made after seeing test results, so the test numbers for the detector are "
-      "somewhat optimistic: the 3 min / 20 L floors (test showed 1.7 false alarms a month without them), the 5 min "
-      "minimum for `rate_low` (it was 2 min), and keeping two bands instead of three (the evening band looked the same "
-      "on validation, 0.26 vs 0.35 false alarms a month, and overfit on test, 1.55). The hourly usage model was selected "
+    w("**Honesty note.** Several detector choices were revised after seeing results, so its test numbers are somewhat "
+      "optimistic: the floors and the 5 min minimum for the slow-flow indicator (after test runs), and the switch from "
+      "boosted quantiles with one margin per band to per-hour maxima (after the owner saw a 39 min / 1277 L limit for "
+      "Monday 19:00: one margin for the whole day had to cover the worst hour). The hourly usage model was selected "
       "on validation only.")
     w("")
-    w(picture("duration", "Bar chart of the one-flow duration alarm by hour: 3 minutes at night, 9 to 40 minutes "
-              "during the day with the longest limits in the evening, always well above the p99 of real flows"))
+    w(picture("duration", "Bar chart of the one-flow duration alarm by hour: 3 minutes at night, about 15 to 21 "
+              "minutes during the day, above the longest normal flow at every hour"))
     w("")
     w("### Synthetic leaks on the test period")
     w("")
@@ -461,7 +466,12 @@ def render(mh, ma, th, df, flows):
     w("")
     w("- Short flows at shower rates (3-12 L/min for 5 min) are indistinguishable from a shower and mostly pass; "
       "the device's Tier 1 limit is what covers a leak that simply keeps going.")
-    w("- A 15 min+ flow is caught in about 11 min in the daytime and 3 min at night.")
+    r15 = [syn[("leak", f"{r} L/min x 15 min")]["recall"] for r in (3, 6, 12)]
+    r30 = [syn[("leak", f"{r} L/min x 30 min")] for r in (3, 6, 12)]
+    w(f"- 15 min at tap rates is caught in {100 * min(r15):.0f}-{100 * max(r15):.0f} % of cases (always at night, "
+      f"less often in the evening, where baths are that long); 30 min and more in "
+      f"{100 * min(c['recall'] for c in r30):.0f} %, after about {max(c['median_delay_min'] for c in r30):.0f} min "
+      "(median).")
     w("- 35 L/min is above anything the house has drawn (peak 26.4 L/min), so it alarms in 30 s on rate alone.")
     w("")
     fa = ma["test"]["fa_per_month"]
@@ -531,9 +541,9 @@ def render(mh, ma, th, df, flows):
     w("## Next")
     w("")
     w("- Label the events above in `known_events.csv` (pool / hose / drip).")
-    w("- Online part (firmware 3.4.0, `wc-model` on hc-data): the per-hour flow limits reach the device as a retained "
-      "`water/<mac>/config` and notify live (never close the valve); hc-data retrains monthly and checks the hourly "
-      "totals. Tier 1 stays independent of all of this.")
+    w("- Online part (firmware 3.4.0): `publish.py` sends the per-hour limits as a retained `water/<mac>/config`; the "
+      "device notifies live and never closes the valve. hc-data checks the hourly totals (`score.py`). Retraining "
+      "runs on a workstation every few months. Tier 1 stays independent of all of this.")
     w("")
     return "\n".join(lines)
 

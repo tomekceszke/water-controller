@@ -172,6 +172,25 @@ static void tiny_flows_do_not_count_at_night(void)
     }
 }
 
+static void duration_limit_stays_below_tier1(void)
+{
+    learned_config_t c = config(1500, 10000, 10);   // learned: 25 min
+    learned_state_t s;
+    learned_init(&s);
+    int64_t t = 0;
+    learned_decision_t d = {0};
+    for (int i = 0; i < 1600 && d.hit == LEARNED_NONE; i++) {   // Tier 1 at 20 min: cap 15 min
+        t += 1000;
+        learned_sample_t smp = {.now_ms = t, .pulses = 41, .flowing = true, .local_dow = MON, .local_hour = 11,
+                                .local_yday = 10, .pulses_per_liter = K, .max_dur_s = 900};
+        d = learned_update(&s, &c, &smp);
+    }
+    CHECK_EQ(d.hit, LEARNED_DURATION);
+    CHECK_EQ(d.limit, 900);
+    CHECK_EQ(learned_dur_limit(&c, 0, 30), LEARNED_DUR_MIN_S);   // never below the floor
+    CHECK_EQ(learned_dur_limit(&c, 0, 0), 1500);                // no cap
+}
+
 static void nothing_without_clock_or_config(void)
 {
     learned_config_t c = config(60, 5, 3);
@@ -196,6 +215,7 @@ int main(void)
     RUN(new_flow_rearms);
     RUN(night_flows_count_and_reset);
     RUN(tiny_flows_do_not_count_at_night);
+    RUN(duration_limit_stays_below_tier1);
     RUN(nothing_without_clock_or_config);
     return report();
 }

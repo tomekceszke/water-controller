@@ -107,9 +107,8 @@ def main():
     lim = flow_limits(anomaly["flow_models"], anomaly["choice"], X).iloc[0]
     print("  alarm for one flow: longer than {:.0f} s, more than {:.1f} L, faster than {:.1f} L/min, "
           "slower than {:.2f} L/min (flows >= 5 min)".format(*(np.exp(lim[i]) for i in FLOW_IND)))
-    a, m = anomaly["choice"]["hour_liters"][band_of(when.hour).item()]
-    b = hourly["liters"]
-    print(f"  alarm for the hour: more than {max(b['quantiles'][a].predict(X)[0] * b['level'], 1) * np.exp(m):.0f} L")
+    _, m = anomaly["choice"]["hour_liters"][band_of(when.hour).item()]
+    print(f"  alarm for the hour: more than {max(anomaly['hour_models']['liters'].predict(X)[0], 1) * np.exp(m):.0f} L")
     print(f"  night (00-06): alarm above {anomaly['choice']['night_flows']['threshold']} flows")
 
 

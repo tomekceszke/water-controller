@@ -37,6 +37,9 @@ rebuilds it around one rule: **the shut-off must work even when everything else 
   - a dripping leak that never stops;
   - an "away from home" mode.
   Rules can be paused while watering the garden.
+- **Learned limits** from six years of history: a notification when a flow runs longer or uses more than any normal
+  flow at that hour (3 minutes at night), or when a night has too many flows. They never close the valve.
+  ([docs/USAGE_MODEL.md](docs/USAGE_MODEL.md))
 - **Keeps the valve where it was** across reboots, power cuts and firmware updates.
 - **iPhone home-screen app** served by the device:
   - live flow and a countdown to shut-off;
@@ -59,17 +62,17 @@ flowchart LR
     pcnt --> t1{{"Tier 1 task<br/>continuous flow > limit?"}}
     t1 -- yes --> valve[[Valve closed<br/>state saved in NVS]]
     t1 -. samples, never blocks .-> q1[(queue)]
-    q1 --> t2{{"Tier 2 task<br/>volume, burst, night, leak, away"}}
+    q1 --> t2{{"Tier 2 task<br/>volume, burst, night, leak, away<br/>+ learned limits (notify only)"}}
     t2 -- request --> valve
     t1 -. events, never blocks .-> q2[(queue)]
     q2 --> mqtt[MQTT → hc-data]
     q2 --> ntfy[ntfy push]
-    server[(PostgreSQL history)] -. learned thresholds, planned .-> t2
+    server[(PostgreSQL history)] -. usage model, retained MQTT config .-> t2
 ```
 
 | | Tier 0 | Tier 1 | Tier 2 |
 |---|---|---|---|
-| Rule | 60 min of continuous flow, **hard-coded** | Continuous flow longer than the limit set in the app (1 min–1 h) | Volume per flow, burst rate, night window, micro-leak notice, away mode |
+| Rule | 60 min of continuous flow, **hard-coded** | Continuous flow longer than the limit set in the app (1 min–1 h) | Volume per flow, burst rate, night window, micro-leak notice, away mode; learned per-hour limits (notify only) |
 | Can be changed | never: no setting, API, snooze or NVS value touches it | from the app, clamped | from the app, can be paused |
 | Depends on | nothing; own flow tracking in the watchdog-guarded flow task | nothing: own task on core 1, monotonic clock, no network, no allocation, never waits on a queue | local clock for the night rule |
 | If it fails | the task watchdog resets the device; the valve state is restored from NVS | same | Tier 1 and Tier 0 are unaffected (verified with the Tier 2 task suspended) |
@@ -77,7 +80,7 @@ flowchart LR
 Tier 0 guards against anything going wrong with Tier 1 (a bad setting, a bug in its logic or in storage). A long,
 legitimate fill (a pool) just means turning the water back on in the app once an hour.
 
-All tiers are pure C modules (`tier0.c`, `tier1.c`, `rules.c`) with host unit tests.
+All tiers are pure C modules (`tier0.c`, `tier1.c`, `rules.c`, `learned.c`) with host unit tests.
 - On the spare board, a test build drives pulses into the meter input.
 - `tools/hw_test.py` then checks 37 things end-to-end, including Tier 1 closing the valve with Wi-Fi switched off and Tier 0 closing it again after a reopen.
 - Details: [docs/TESTING.md](docs/TESTING.md).
@@ -95,11 +98,12 @@ flowchart TB
     end
     subgraph lan[Home network]
         phone[iPhone PWA]
-        hc[hc-data LXC<br/>Mosquitto, wc-ingest, PostgreSQL]
+        hc[hc-data LXC<br/>Mosquitto, wc-ingest, PostgreSQL,<br/>hourly model check]
         otas[OTA server]
     end
     phone <--> api
     tele -- MQTT QoS 1 --> hc
+    hc -- retained learned limits --> tier2
     otas -- HTTPS, pinned cert --> ota
     device -- ntfy.sh --> push[Push notifications]
 ```
@@ -139,9 +143,13 @@ previous cloud setup (269 518 flows since June 2020) was imported with a correct
 
 The quiet nights make the anomaly idea concrete: water running at 3 am is rarely legitimate. A model trained on this
 history ([`docs/USAGE_MODEL.md`](docs/USAGE_MODEL.md), code in `server/model/`) forecasts usage per hour from the
-calendar and sets per-hour alarm thresholds at about one false alarm a month: at night a single flow alarms after
-3 minutes, and injected leaks of 15 minutes or more are caught in 88-100 % of cases. Feeding the night thresholds back to
-Tier 2 is the next step.
+calendar and sets per-hour limits at about one false alarm a month:
+- at night one flow alarms after 3 minutes or 20 L; in the day after the longest normal flow for that hour plus a
+  margin (about 15-20 minutes, since baths are normal in the evening);
+- injected leaks of 30 minutes or more are caught every time, 15-minute ones in about 70 % (all of them at night).
+
+The limits reach the device as a retained MQTT message and notify live, in the app and by push; they never close the
+valve (Tier 1 does that).
 
 ## Hardware
 
@@ -166,7 +174,8 @@ What the actuator does during a reset or power loss, and how that shapes the fir
 ```
 firmware/      ESP-IDF 5.4.2 firmware 3.x (C): tiers, valve, telemetry, API, PWA (web/), host tests (test/)
 migrator/      one-shot OTA image that moves the legacy board to the new bootloader and partition table
-server/        hc-data backend: MQTT ingest, PostgreSQL schema and views, BigQuery history import
+server/        hc-data backend: MQTT ingest, PostgreSQL schema and views, BigQuery history import,
+               usage model and anomaly limits (model/)
 tools/         hardware test, UI dev proxy, release build
 docs/          inventory of the legacy firmware, hardware, calibration, testing, migration
 ```
@@ -188,6 +197,7 @@ Setup details, the HTTP API and MQTT topics: [CLAUDE.md](CLAUDE.md) (the project
 - **2022–2023**: ESP-IDF 5.1, new PCNT driver, simple web page.
 - **2026, version 3**:
   - protection tiers;
+  - usage model and learned per-hour limits (3.4);
   - valve state that survives restarts;
   - shared home-idf framework;
   - PWA;

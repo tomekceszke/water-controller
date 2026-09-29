@@ -4,7 +4,7 @@ Protection is tested at two levels: pure logic on the host, then the real firmwa
 
 ## Host unit tests
 
-`firmware/test/` compiles `tier0.c`, `tier1.c` and `rules.c` without ESP-IDF:
+`firmware/test/` compiles `tier0.c`, `tier1.c`, `rules.c` and `learned.c` without ESP-IDF:
 
 ```sh
 cmake -S firmware/test -B build-test && cmake --build build-test && ctest --test-dir build-test
@@ -14,7 +14,12 @@ cmake -S firmware/test -B build-test && cmake --build build-test && ctest --test
 |---|---|
 | `test_tier0` | hard-coded 60 min, trips once, a trickle with 5 s pauses is continuous, a longer pause restarts the hour, water turned on again gets a new hour, reopening while water still runs restarts the limit, no repeated trips without a reopen |
 | `test_tier1` | flow start/end with the pause gap, trip exactly once at the limit, trickle flow keeps the timer, trip during a pause, fresh state after a trip, limit lowered during a flow, 2 h of high flow without overflow |
+| `test_learned` | config parser (valid, wrong array length, wrong version, values clamped to the hard bounds), duration and volume notifications once per flow, the limit of the hour the flow started in, a new flow re-arms, night flow count (tiny flows ignored, once per night, reset the next night), duration limit capped under Tier 1, nothing without a clock or a config |
 | `test_rules` | all rules off, max volume (once per flow, exact pulse threshold), reset between flows, burst duration, night window across midnight, night rule off without a clock, snooze vs vacation, snooze expiry, micro-leak notification once, leak counter reset |
+
+The server side has its own unit tests (no database): `server/model/test_model.py` (hourly grid, DST, wrap fix, split,
+level correction, leak injection, the config `publish.py` builds, the hourly check) and `server/ingest/test_wc_ingest.py`.
+The config format is also checked end to end: a real `publish.py --dry-run` payload parses with `learned.c`.
 
 A deliberately broken `tier1.c` (trip flag not latched) makes the suite fail, so the tests do catch regressions.
 

@@ -63,12 +63,16 @@ id wc_ingest >/dev/null 2>&1 || useradd --system --no-create-home --shell /usr/s
 venv/bin/pip install -q --disable-pip-version-check -r ingest/requirements.txt
 install -m 644 ingest/wc-ingest.service /etc/systemd/system/wc-ingest.service
 
-echo "== usage model (monthly retraining, hourly check)"
+echo "== usage model: hourly check (training runs on a workstation, publish.py copies thresholds.json here)"
 id wc_model >/dev/null 2>&1 || useradd --system --no-create-home --shell /usr/sbin/nologin wc_model
+install -d -m 755 -o wc_model -g wc_model /var/lib/wc-model /var/lib/wc-model/out
+# The first version trained here (1 CPU, 1 GB: too small); drop its units and heavy venv
+systemctl disable -q --now wc-model-train.timer 2>/dev/null || true
+rm -f /etc/systemd/system/wc-model-train.service /etc/systemd/system/wc-model-train.timer
+if model-venv/bin/python -c "import sklearn" 2>/dev/null; then rm -rf model-venv /var/lib/wc-model/data; fi
 [ -x model-venv/bin/python ] || python3 -m venv model-venv
-model-venv/bin/pip install -q --disable-pip-version-check -r model/requirements.txt
-install -m 644 model/wc-model-train.service model/wc-model-train.timer model/wc-model-score.service \
-    model/wc-model-score.timer /etc/systemd/system/
+model-venv/bin/pip install -q --disable-pip-version-check -r model/requirements-score.txt
+install -m 644 model/wc-model-score.service model/wc-model-score.timer /etc/systemd/system/
 
 echo "== backups"
 install -d -m 750 -o postgres -g postgres /var/backups/water
@@ -76,10 +80,12 @@ install -m 644 backup/wc-pg-backup.service backup/wc-pg-backup.timer /etc/system
 
 systemctl daemon-reload
 systemctl enable -q --now wc-pg-backup.timer
-systemctl enable -q --now wc-model-train.timer wc-model-score.timer
+# The hourly check starts once publish.py has delivered thresholds.json
+if [ -f /var/lib/wc-model/out/thresholds.json ]; then systemctl enable -q --now wc-model-score.timer; fi
 systemctl enable -q wc-ingest
 systemctl restart wc-ingest
 
 echo "== status"
-systemctl is-active mosquitto postgresql wc-ingest wc-pg-backup.timer wc-model-train.timer wc-model-score.timer
+systemctl is-active mosquitto postgresql wc-ingest wc-pg-backup.timer
+systemctl is-active wc-model-score.timer || echo "(hourly model check waits for server/model/publish.py)"
 systemctl is-active hc-ingest 2>/dev/null && echo "(heating ingest still running)" || true

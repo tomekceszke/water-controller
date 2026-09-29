@@ -41,7 +41,7 @@ $R server/model/predict.py --flow "tue 03:00" 15m 90   # score one flow: start, 
 | `predict.py` | CLI on the saved models |
 | `publish.py` | learned limits as the retained `water/<mac>/config` for firmware 3.4+ (`--dry-run` prints it); guarded |
 | `score.py` | hourly check of liters per hour on hc-data (`model_alert` + ntfy) |
-| `retrain.sh`, `wc-model-*.service/.timer` | the hc-data service, see [server/README.md](../README.md#usage-model-wc-model) |
+| `wc-model-score.service/.timer`, `requirements-score.txt` | the hourly check on hc-data, see [server/README.md](../README.md#usage-model-wc-model) |
 | `report.py`, `report_template.html` | the markdown report, charts and the interactive HTML page |
 | `known_events.csv` | **gitignored**: unusual periods kept out of "normal" training (lawn 2023, pool, hose) with exact dates; label the `unlabelled` rows |
 | `known_events.example.csv` | its format, with month-level placeholder dates (used when the real file is missing) |

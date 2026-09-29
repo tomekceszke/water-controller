@@ -42,6 +42,7 @@ typedef struct {
     int local_hour;                     // 0-23; -1 when the clock is not synced
     int local_yday;                     // day of year, to tell one night from the next
     uint32_t pulses_per_liter;
+    uint32_t max_dur_s;                 // cap on the duration limit (below the Tier 1 shut-off), 0 = none
 } learned_sample_t;
 
 typedef enum {
@@ -77,6 +78,15 @@ void learned_init(learned_state_t *state);
 
 /* One decision per sample at most; each flow notifies once per indicator, each night once. */
 learned_decision_t learned_update(learned_state_t *state, const learned_config_t *config, const learned_sample_t *s);
+
+/* Duration limit for an hour of week after the cap: a notification that would come after Tier 1 has already shut
+ * the water off tells nothing, so the limit stays below it (never under LEARNED_DUR_MIN_S). */
+static inline uint32_t learned_dur_limit(const learned_config_t *c, int how, uint32_t max_dur_s)
+{
+    uint32_t limit = c->dur_s[how];
+    if (max_dur_s && max_dur_s < limit) limit = max_dur_s < LEARNED_DUR_MIN_S ? LEARNED_DUR_MIN_S : max_dur_s;
+    return limit;
+}
 
 static inline int learned_how(int dow, int hour)
 {

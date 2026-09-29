@@ -31,8 +31,8 @@ import features  # noqa: E402
 from data import load_flows  # noqa: E402
 from features import (FLOW_MIN_L, SPLITS, TZ, calendar, clean_flows, flow_frame, hourly_frame,  # noqa: E402
                       load_known_events)
-from models import GBM  # noqa: E402
-from train import candidates, level_factor, usable, window  # noqa: E402
+from models import GBM, HourMax  # noqa: E402
+from train import usable, window  # noqa: E402
 
 OUT = features.OUT
 MERGE_GAP = pd.Timedelta(seconds=5)  # firmware: a pause longer than 5 s ends a flow
@@ -49,16 +49,24 @@ FLOW_IND = {
 FLOOR = {"duration": np.log(180), "volume": np.log(20)}
 # Flows per hour is predicted (train.py) but not an alarm: night_flows covers the case with a far lower limit
 HOUR_IND = {"hour_liters": "liters"}
-ALPHAS = {"upper": (0.99, 0.999), "lower": (0.01, 0.001)}
+# Upper indicators: the per-hour maximum of normal data (models.HourMax) times a margin. Lower (slow flow):
+# boosted low quantiles, where the tail is not the problem.
+ALPHAS = {"upper": ("max",), "lower": (0.01, 0.001)}
 # False-alarm budget per month and indicator, about one alarm a month in total; night gets NIGHT_SHARE of it
-BUDGET = {"duration": 0.3, "volume": 0.2, "rate_high": 0.1, "rate_low": 0.1, "hour_liters": 0.15,
-          "night_flows": 0.15}
+BUDGET = {"rate_low": 0.1, "night_flows": 0.15}   # the per-hour maxima share MAX_BUDGET
 NIGHT_HOURS = 6  # local 00:00-05:59
 BANDS = ("night", "day")
 SHARE = {"night": 0.25, "day": 0.75}
 # A third band (evening 17-24, where baths of 10-14 min are normal) was tried: validation could not tell it apart
 # (0.26 vs 0.35 false alarms a month) and on test it overfit (1.55 a month), so the two bands stay.
 LOG_MARGINS = np.linspace(0, np.log(8), 61)
+# The per-hour maxima share one margin, the smallest on MAX_MARGINS whose alarms (distinct hours) stay within
+# MAX_BUDGET a month on validation. Validation maxima come from a single year; production maxima from all data are
+# larger, so the thresholds on the device err on the quiet side. (Per-indicator margins tuned on one year's maxima
+# and applied to three years' gave 21 min and 965 L at midday.)
+MAX_MARGINS = np.round(np.arange(1.0, 2.01, 0.05), 2)
+MAX_INDICATORS = ("duration", "volume", "rate_high", "hour_liters")
+MAX_BUDGET = 0.75
 FLOW_WINDOWS = ("2020-06", "2024-01")
 LEAKS = {"rate_lpm": (1, 3, 6, 12, 35), "minutes": (5, 15, 30, 60)}
 N_TRIALS = 200
@@ -81,8 +89,11 @@ def fit_flow_models(fr, fit_on, win, season):
     for ind, spec in FLOW_IND.items():
         part = tr[tr["duration_s"] >= spec["min_dur"]]
         for a in ALPHAS[spec["side"]]:
-            models[(ind, a)] = GBM(season=season, loss="quantile", quantile=a, min_samples_leaf=200,
-                                   max_iter=300).fit(part, part[spec["col"]].to_numpy())
+            if a == "max":
+                models[(ind, a)] = HourMax().fit(part, part[spec["col"]].to_numpy())
+            else:
+                models[(ind, a)] = GBM(season=season, loss="quantile", quantile=a, min_samples_leaf=200,
+                                       max_iter=300).fit(part, part[spec["col"]].to_numpy())
     return models
 
 
@@ -124,19 +135,15 @@ def flow_alarms(fl, limits):
 
 # ---------------------------------------------------------------- hour-level models
 
-def hourly_limits(df, cfg, target, fit_on, alphas):
-    """alpha -> Series of level-corrected hourly quantiles for all hours (models fitted on `fit_on`)."""
-    ok = usable(df)
-    make = next(m for n, s, m in candidates() if n == cfg["model"])
-    tr, w = window(ok, cfg["window"], fit_on)
-    mean = make().fit(tr, tr[target].to_numpy(), w)
-    level = level_factor(ok[target], pd.Series(mean.predict(ok), index=ok.index), df.index, cfg["level_days"])
-    out = {}
-    for a in alphas:
-        q = GBM(season=cfg["season"], loss="quantile", quantile=a, min_samples_leaf=200).fit(
-            tr, tr[target].to_numpy(), w)
-        out[a] = pd.Series(q.predict(df), index=df.index) * level
-    return out
+def fit_hour_model(df, cfg, target, fit_on):
+    """Largest normal hourly total per local hour (±1 h) in the training window of the hourly model."""
+    tr, _ = window(usable(df), cfg["window"], fit_on)
+    return HourMax().fit(tr, tr[target].to_numpy())
+
+
+def hourly_limits(df, cfg, target, fit_on):
+    """{"max": Series of the per-hour maximum for all hours} (fitted on `fit_on`)."""
+    return {"max": pd.Series(fit_hour_model(df, cfg, target, fit_on).predict(df), index=df.index)}
 
 
 # ---------------------------------------------------------------- calibration
@@ -172,36 +179,47 @@ def night_counts(df_split):
     return c.loc[~c["bad"] & (c["n"] == NIGHT_HOURS), "flows"]
 
 
+def _max_margin(normal, flow_models, h, hour_q, n_months):
+    """Smallest shared margin for the per-hour maximum indicators within MAX_BUDGET alarm-hours a month."""
+    flows = {}
+    for ind in ("duration", "volume", "rate_high"):
+        spec = FLOW_IND[ind]
+        p = normal[normal["duration_s"] >= spec["min_dur"]]
+        flows[ind] = (p, flow_models[(ind, "max")].predict(p), p[spec["col"]].to_numpy())
+    hq = np.log(np.maximum(hour_q["liters"]["max"].reindex(h.index).to_numpy(), 1.0))
+    hv = np.log(np.maximum(h["liters"].to_numpy(), 1e-3))
+    for m in MAX_MARGINS:
+        lm = np.log(m)
+        hours = set(h.index[hv > hq + lm])
+        for ind, (p, q, v) in flows.items():
+            lim = np.maximum(q + lm, FLOOR.get(ind, -np.inf))
+            hours |= set(p["start_ts"][v > lim].dt.floor("h"))
+        if len(hours) / n_months <= MAX_BUDGET:
+            return float(lm)
+    return float(np.log(MAX_MARGINS[-1]))
+
+
 def calibrate(fr_split, flow_models, df_split, hour_q, n_months):
-    """Per indicator and band the most sensitive (alpha, margin) within its false-alarm budget on this split."""
+    """Shared margin for the per-hour maxima, and per band the most sensitive (alpha, margin) for the slow-flow
+    indicator; the night flow count gets the smallest threshold within its budget."""
     normal = fr_split[~fr_split["known"]]
-    choice, fa = {}, {}
-    for ind, spec in FLOW_IND.items():
-        part = normal[normal["duration_s"] >= spec["min_dur"]]
-        band = band_of(part["hour"])
-        choice[ind], n = {}, 0
-        for b in ("day", "night"):
-            x = part[band == b]
-            if not len(x):  # nothing to calibrate on (no night flows this long): same as the day
-                choice[ind][b] = choice[ind]["day"]
-                continue
-            q = {a: flow_models[(ind, a)].predict(x) for a in ALPHAS[spec["side"]]}
-            a, m, k = _pick(x[spec["col"]].to_numpy(), q, spec["side"], BUDGET[ind] * SHARE[b] * n_months,
-                            FLOOR.get(ind, -np.inf))
-            choice[ind][b], n = (a, m), n + k
-        fa[ind] = n / n_months
     h = df_split[~df_split["known"] & ~df_split["unknown"]]
-    band = band_of(h["hour"])
-    for ind, target in HOUR_IND.items():
-        choice[ind], n = {}, 0
-        for b in BANDS:
-            x = h[band == b]
-            # log scale; a count/volume below 1 never alarms
-            q = {a: np.log(np.maximum(hq[x.index].to_numpy(), 1.0)) for a, hq in hour_q[target].items()}
-            v = np.log(np.maximum(x[target].to_numpy(), 1e-3))
-            a, m, k = _pick(v, q, "upper", BUDGET[ind] * SHARE[b] * n_months)
-            choice[ind][b], n = (a, m), n + k
-        fa[ind] = n / n_months
+    lm = _max_margin(normal, flow_models, h, hour_q, n_months)
+    choice = {ind: {b: ("max", lm) for b in BANDS} for ind in MAX_INDICATORS}
+    fa = {}
+    spec = FLOW_IND["rate_low"]
+    part = normal[normal["duration_s"] >= spec["min_dur"]]
+    band = band_of(part["hour"])
+    choice["rate_low"], n = {}, 0
+    for b in ("day", "night"):
+        x = part[band == b]
+        if not len(x):  # nothing to calibrate on (no night flows this long): same as the day
+            choice["rate_low"][b] = choice["rate_low"]["day"]
+            continue
+        q = {a: flow_models[("rate_low", a)].predict(x) for a in ALPHAS["lower"]}
+        a, m, k = _pick(x[spec["col"]].to_numpy(), q, "lower", BUDGET["rate_low"] * SHARE[b] * n_months)
+        choice["rate_low"][b], n = (a, m), n + k
+    fa["rate_low"] = n / n_months
     counts = night_counts(df_split)
     k = int(counts.max()) if len(counts) else 10
     for thr in range(int(counts.median()) if len(counts) else 0, k + 1):
@@ -448,7 +466,7 @@ def choose_flow_config(fr):
 def evaluate_split(split, fit_on, fr, df, cfg_hourly, flow_cfg, choice=None):
     """Fit on `fit_on`, calibrate on `split` if no choice given, then real alarms and synthetic leaks there."""
     fm = fit_flow_models(fr, fit_on, flow_cfg["window"], flow_cfg["season"])
-    hq = {t: hourly_limits(df, cfg_hourly[t], t, fit_on, (0.99,)) for t in HOUR_IND.values()}
+    hq = {t: hourly_limits(df, cfg_hourly[t], t, fit_on) for t in HOUR_IND.values()}
     fr_s, df_s, n = fr[fr["split"] == split], df[df["split"] == split], months(df, split)
     fa_cal = None
     if choice is None:
@@ -467,7 +485,7 @@ def mahalanobis_compare(fr, ev_val):
     buckets = mahalanobis_fit(fr[fr["split"] == "train"])
     val = fr[(fr["split"] == "validation") & ~fr["known"]]
     s = mahalanobis_score(buckets, val)
-    budget = sum(BUDGET[i] for i in FLOW_IND) * ev_val["months"]
+    budget = (MAX_BUDGET + BUDGET["rate_low"]) * ev_val["months"]
     thr = float(np.sort(s)[::-1][int(budget)])
     mf = ev_val["trial_flows"]
     mf["mahal"] = mahalanobis_score(buckets, mf)
@@ -505,7 +523,7 @@ def firmware_checks(fr, flow_models, choice):
              "indicators": [k for k in FLOW_IND if fired.loc[i, k]]} for i in closed.index]
 
 
-def thresholds_table(bundle_h, flow_models, choice):
+def thresholds_table(bundle_h, flow_models, choice, hour_models):
     """Per local hour of week (+ a holiday profile): expected usage and the alarm thresholds, for humans/devices."""
     now = pd.Timestamp.now(tz=TZ)
     rows = []
@@ -529,8 +547,8 @@ def thresholds_table(bundle_h, flow_models, choice):
             for a, q in b["quantiles"].items():
                 e[f"{target}_p{a * 100:g}"] = round(float(q.predict(X.iloc[[i]])[0] * b["level"]), 2)
             if f"hour_{target}" in choice:
-                a, m = choice[f"hour_{target}"][band_of(r["hour"]).item()]
-                e[f"alarm_hour_{target}"] = round(max(float(b["quantiles"][a].predict(X.iloc[[i]])[0] * b["level"]), 1)
+                _, m = choice[f"hour_{target}"][band_of(r["hour"]).item()]
+                e[f"alarm_hour_{target}"] = round(max(float(hour_models[target].predict(X.iloc[[i]])[0]), 1)
                                                   * np.exp(m), 1)
         e["alarm_flow_duration_s"] = round(float(np.exp(lim.loc[i, "duration"])))
         e["alarm_flow_liters"] = round(float(np.exp(lim.loc[i, "volume"])), 1)
@@ -565,14 +583,16 @@ def main():
     test = evaluate_split("test", ["train", "validation"], fr, df, cfg_hourly, flow_cfg, choice)
     print("test FA/month", round(test["fa_total_per_month"], 2))
 
-    # Production: flow models on all normal flows; hourly quantiles come from hourly.joblib
-    prod = fit_flow_models(fr, ["train", "validation", "test"], flow_cfg["window"], flow_cfg["season"])
+    # Production: flow and hour models on all normal data; expected usage comes from hourly.joblib
+    everything = ["train", "validation", "test"]
+    prod = fit_flow_models(fr, everything, flow_cfg["window"], flow_cfg["season"])
+    hour_models = {t: fit_hour_model(df, cfg_hourly[t], t, everything) for t in HOUR_IND.values()}
     known = known_event_check(fr, prod, choice)
     fw = firmware_checks(fr, prod, choice)
-    table = thresholds_table(bundle_h, prod, choice)
+    table = thresholds_table(bundle_h, prod, choice, hour_models)
 
     used = {(ind, a) for ind in FLOW_IND for a, _ in choice[ind].values()}
-    joblib.dump({"flow_models": {k: v for k, v in prod.items() if k in used},
+    joblib.dump({"flow_models": {k: v for k, v in prod.items() if k in used}, "hour_models": hour_models,
                  "choice": choice, "flow_config": flow_cfg}, OUT / "anomaly.joblib")
     (OUT / "thresholds.json").write_text(json.dumps({"generated": str(pd.Timestamp.now(tz=TZ))[:19],
                                                      "choice": readable(choice), "table": table}, indent=1))

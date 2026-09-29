@@ -202,7 +202,7 @@ footer { color: var(--muted); font-size: 0.85rem; border-top: 1px solid var(--li
       <div class="eyebrow">Anomaly detection</div>
       <h2>When a flow stops being normal</h2>
     </div>
-    <p class="lede">Every indicator is a one-sided limit on its own distribution for that hour and day, times a margin. The margins were set on 2025 so that all indicators together raise about one false alarm a month; at night far less is normal, so the night gets its own, smaller margin.</p>
+    <p class="lede">A flow is unusual when it runs longer, uses more or runs faster than any normal flow seen at that hour (±1 h) since 2024, times one shared margin set on 2025 for about one false alarm a month. Floors: 3 min and 20 L. On the device the duration limit also stays under 3/4 of the Tier 1 shut-off, so the notification comes first.</p>
     <div class="chart">
       <div class="cap"><h3 id="durTitle"></h3>
         <div class="legend"><span><i style="background:var(--accent);height:10px"></i>alarm after (one flow)</span><span><i style="background:var(--actual)"></i>p99 of real flows</span></div></div>
@@ -268,7 +268,12 @@ footer { color: var(--muted); font-size: 0.85rem; border-top: 1px solid var(--li
   const fmt = (v, d = 1) => (v == null || !isFinite(v)) ? '–' : Number(v).toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d });
   const pct = (v, d = 0) => fmt(v * 100, d) + ' %';
   const mins = (s) => s >= 90 ? fmt(s / 60, s >= 600 ? 0 : 1) + ' min' : fmt(s, 0) + ' s';
-  const row = (p, h) => D.table.find((e) => e.profile === p && e.hour === h);
+  // The device keeps the duration limit under 3/4 of the Tier 1 shut-off (15 min at its 20 min default)
+  const CAP_S = 900;
+  const row = (p, h) => {
+    const e = D.table.find((x) => x.profile === p && x.hour === h);
+    return e && { ...e, alarm_flow_duration_s: Math.min(e.alarm_flow_duration_s, CAP_S), dur_capped: e.alarm_flow_duration_s > CAP_S };
+  };
   const svg = (tag, attrs = {}, parent) => {
     const el = document.createElementNS(NS, tag);
     for (const [k, v] of Object.entries(attrs)) el.setAttribute(k, v);
@@ -332,7 +337,7 @@ footer { color: var(--muted); font-size: 0.85rem; border-top: 1px solid var(--li
     }
     $('expText').textContent = `${DAYN[state.day][0].toUpperCase() + DAYN[state.day].slice(1)} ${String(state.hour).padStart(2, '0')}:00. Half of such hours use less than ${fmt(e.liters_p50, 1)} L, 90 % less than ${fmt(e.liters_p90, 0)} L and 99 % less than ${fmt(e.liters_p99, 0)} L; about ${fmt(e.flows_mean, 1)} separate flows.`;
     const lim = [
-      ['One flow lasts longer than', mins(e.alarm_flow_duration_s)],
+      [e.dur_capped ? 'One flow lasts longer than (capped under Tier 1)' : 'One flow lasts longer than', mins(e.alarm_flow_duration_s)],
       ['One flow is bigger than', fmt(e.alarm_flow_liters, 0) + ' L'],
       ['A flow runs faster than', fmt(e.alarm_flow_rate_lpm_above, 1) + ' L/min'],
       ['A flow of 5+ min runs slower than', fmt(e.alarm_flow_rate_lpm_below, 2) + ' L/min'],
@@ -486,12 +491,12 @@ footer { color: var(--muted); font-size: 0.85rem; border-top: 1px solid var(--li
     ['rate_low', 'Slow flow of 5 min or more: drip, cistern valve'],
     ['hour_liters', 'Hour total above usual: a hose with pauses'],
   ];
-  const q = (c) => `p${+(c.alpha * 100).toFixed(1)} × ${fmt(c.margin, 2)}`;
+  const q = (c) => c.alpha === 'max' ? `max at this hour × ${fmt(c.margin, 2)}` : `p${+(c.alpha * 100).toFixed(1)} ÷ ${fmt(c.margin, 2)}`;
   table($('tInd'), ['Indicator', 'Catches', 'Night 00-06', 'Day', 'False alarms / month (2026)'],
     IND.map(([k, d]) => [`<span class="mono">${k}</span>`, d, q(D.choice[k].night), q(D.choice[k].day), fmt(D.fa.test_by[k], 2)])
       .concat([['<span class="mono">night_flows</span>', 'Many small flows in one night: cistern or float valve', `> ${D.choice.night_flows.threshold} flows`, '–', fmt(D.fa.test_by.night_flows, 2)]]),
     ['', '', 'n', 'n', 'n']);
-  $('honesty').innerHTML = '<b>Test numbers for the detector are somewhat optimistic.</b> Three choices were made after seeing 2026 results: the 3 min and 20 L floors for a single flow (without them the night limit fell to about 70 s and gave 1.7 false alarms a month), the 5 min minimum for the slow-flow indicator, and keeping two bands of the day instead of three (the evening band looked the same on 2025 and overfit on 2026). The hourly forecast was chosen on 2025 alone.';
+  $('honesty').innerHTML = '<b>Test numbers for the detector are somewhat optimistic.</b> Some choices were revised after seeing results: the 3 min and 20 L floors, the 5 min minimum for the slow-flow indicator, and per-hour maxima instead of boosted quantiles with one margin for the whole day (that gave 39 min and 1277 L for Monday 19:00). Since 2024 no normal flow ran longer than 14.2 min, so at about one false alarm a month a daytime limit cannot be much tighter than 15-20 min. The hourly forecast was chosen on 2025 alone.';
 
   // ---------- synthetic leaks
   const rates = [1, 3, 6, 12, 35], mm = [5, 15, 30, 60];

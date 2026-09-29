@@ -71,6 +71,12 @@ static void local_time(int *dow, int *hour, int *yday)
     *yday = t.tm_yday;
 }
 
+/* Learned duration limits stay at 3/4 of the Tier 1 limit, so the notification comes before the shut-off */
+static uint32_t learned_cap_s(uint32_t tier1_limit_s)
+{
+    return tier1_limit_s * 3 / 4;
+}
+
 static void learned_load(void)
 {
     nvs_handle_t h;
@@ -138,6 +144,7 @@ static void learned_step(const protect_sample_t *sample, const settings_t *s, in
     const learned_sample_t in = {
         .now_ms = sample->now_ms, .pulses = sample->pulses, .flowing = sample->flowing,
         .local_dow = dow, .local_hour = hour, .local_yday = yday, .pulses_per_liter = s->pulses_per_liter,
+        .max_dur_s = learned_cap_s(s->tier1_limit_s),
     };
     portENTER_CRITICAL(&s_mux);
     const learned_decision_t d = learned_update(&s_learned_state, &s_learned, &in);
@@ -279,7 +286,7 @@ void protect_learned_status(protect_learned_t *out)
     // The current flow is judged by the hour it started in; without a flow, the hour now
     const int how = s_learned_state.flowing && s_learned_state.how >= 0 ? s_learned_state.how : s_now_how;
     if (s_learned.valid && how >= 0) {
-        out->limit_s = s_learned.dur_s[how];
+        out->limit_s = learned_dur_limit(&s_learned, how, learned_cap_s(settings_tier1_limit_s()));
         out->limit_l = s_learned.vol_l[how];
     }
     out->flowing = s_learned_state.flowing;

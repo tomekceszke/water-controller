@@ -9,7 +9,7 @@ Group=wc_model
 EnvironmentFile=/etc/wc-server/secrets.env
 Environment=WC_MODEL_STATE=/var/lib/wc-model WC_PG_DSN=dbname=water
 ExecStart=/opt/wc-server/model-venv/bin/python /opt/wc-server/model/score.py
-StateDirectory=wc-model
+ReadWritePaths=/var/lib/wc-model
 NoNewPrivileges=yes
 ProtectSystem=strict
 ProtectHome=yes

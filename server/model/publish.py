@@ -3,9 +3,10 @@
 
   uv run --with-requirements server/model/requirements.txt server/model/publish.py [--dry-run]
 
-Reads out/thresholds.json and out/metrics_anomaly.json (anomaly.py). Publishes only when the new run passes the
-guard; otherwise the retained message stays as it was and the owner gets an ntfy notice. Needs MQTT_MODEL_PASS
-(and optionally NTFY_URL) in the environment or server/secrets.env.
+Runs on the workstation that trains the model (hc-data is too small for training). Reads out/thresholds.json and
+out/metrics_anomaly.json (anomaly.py). Publishes only when the run passes the guard; otherwise the retained message
+stays as it was. After publishing it copies thresholds.json to hc-data for the hourly check (score.py). Needs
+MQTT_MODEL_PASS in the environment or server/secrets.env and ssh access to root@hc-data.
 """
 import argparse
 import datetime as dt
@@ -21,6 +22,8 @@ from data import PRODUCTION, SECRETS  # noqa: E402
 from features import OUT  # noqa: E402
 
 BROKER = ("192.168.11.16", 1883)
+SERVER = "root@192.168.11.16"
+SERVER_THRESHOLDS = "/var/lib/wc-model/out/thresholds.json"
 USER = "wc-model"
 DAYS = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"]
 # Guard: a run that would alarm more often than this on its own test period, or that let the night limit fall
@@ -106,9 +109,19 @@ def publish(payload):
         raise SystemExit("config not acknowledged by the broker")
 
 
+def copy_thresholds():
+    """thresholds.json for score.py on hc-data; then make sure its hourly timer runs."""
+    subprocess.run(["ssh", SERVER, f"install -d -o wc_model -g wc_model {pathlib.Path(SERVER_THRESHOLDS).parent} && "
+                    f"cat > {SERVER_THRESHOLDS}.tmp && chown wc_model:wc_model {SERVER_THRESHOLDS}.tmp && "
+                    f"mv {SERVER_THRESHOLDS}.tmp {SERVER_THRESHOLDS} && "
+                    "systemctl enable -q --now wc-model-score.timer"],
+                   input=(OUT / "thresholds.json").read_bytes(), check=True, timeout=60)
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--dry-run", action="store_true", help="print the config instead of publishing it")
+    ap.add_argument("--no-copy", action="store_true", help="do not copy thresholds.json to hc-data")
     args = ap.parse_args()
     thresholds = json.loads((OUT / "thresholds.json").read_text())
     metrics = json.loads((OUT / "metrics_anomaly.json").read_text())
@@ -120,10 +133,12 @@ def main():
         print(f"{len(payload)} bytes; guard: {'; '.join(problems) or 'ok'}", file=sys.stderr)
         return
     if problems:
-        notify("Learned limits not updated", "The monthly retraining was held back: " + "; ".join(problems))
-        raise SystemExit("guard: " + "; ".join(problems))
+        raise SystemExit("guard, nothing published: " + "; ".join(problems))
     publish(payload)
     print(f"published {len(payload)} bytes to water/{PRODUCTION}/config (generated {config['generated']})")
+    if not args.no_copy:
+        copy_thresholds()
+        print(f"copied thresholds.json to {SERVER}:{SERVER_THRESHOLDS}")
 
 
 if __name__ == "__main__":
