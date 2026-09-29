@@ -1,4 +1,5 @@
 """Unit tests (no database): uv run --with-requirements server/model/requirements.txt python -m unittest server/model/test_model.py"""
+import json
 import pathlib
 import sys
 import unittest
@@ -11,6 +12,8 @@ from anomaly import _pick, inject, night_counts  # noqa: E402
 from features import (SPLITS, TZ, WRAP_L, calendar, clean_flows, hourly_frame, spread_hourly,  # noqa: E402
                       split_of, unknown_hours)
 from predict import parse_duration, parse_when  # noqa: E402
+from publish import build_config, guard  # noqa: E402
+from score import hour_alarms  # noqa: E402
 from train import level_factor  # noqa: E402
 
 
@@ -124,6 +127,48 @@ class AnomalyTest(unittest.TestCase):
         df.loc[local("2025-05-07 02:00"), "unknown"] = True
         c = night_counts(df)
         self.assertEqual(c.to_dict(), {pd.Timestamp("2025-05-06"): 6})
+
+
+def fake_thresholds(dur=600, night_dur=180):
+    table = []
+    for p in ("mon", "tue", "wed", "thu", "fri", "sat", "sun"):
+        for h in range(24):
+            table.append({"profile": p, "hour": h, "alarm_flow_duration_s": night_dur if h < 6 else dur,
+                          "alarm_flow_liters": 20.0 if h < 6 else 400.4, "liters_mean": 12.34, "liters_p90": 30.0,
+                          "alarm_hour_liters": 50.0 if h < 6 else 300.0})
+    table += [{"profile": "holiday", "hour": h, "alarm_flow_duration_s": dur, "alarm_flow_liters": 400,
+               "liters_mean": 10, "liters_p90": 25, "alarm_hour_liters": 200.0} for h in range(24)]
+    return {"generated": "2026-09-29 23:00:00", "choice": {"night_flows": {"threshold": 10}}, "table": table}
+
+
+class PublishTest(unittest.TestCase):
+    def test_config_matches_the_firmware_format(self):
+        c = build_config(fake_thresholds(), "2026-09-29")
+        self.assertEqual(c["v"], 1)
+        for key in ("dur_s", "vol_l", "exp_l", "p90_l"):
+            self.assertEqual(len(c[key]), 168)
+            self.assertTrue(all(isinstance(v, int) for v in c[key]))
+        self.assertEqual(c["dur_s"][3], 180)          # Monday 03:00
+        self.assertEqual(c["vol_l"][24 + 12], 400)    # Tuesday 12:00, rounded
+        self.assertEqual(c["exp_l"][0], 123)          # liters x10
+        self.assertEqual(c["night_flows"], 10)
+        self.assertLess(len(json.dumps(c, separators=(",", ":"))), 4096)   # firmware LEARNED_JSON_MAX
+
+    def test_guard(self):
+        good = {"test": {"fa_total_per_month": 0.95}}
+        self.assertEqual(guard(build_config(fake_thresholds(), "x"), good), [])
+        self.assertTrue(guard(build_config(fake_thresholds(night_dur=70), "x"), good))
+        self.assertTrue(guard(build_config(fake_thresholds(), "x"), {"test": {"fa_total_per_month": 3.1}}))
+
+
+class ScoreTest(unittest.TestCase):
+    def test_hour_alarms_use_the_right_profile(self):
+        t = fake_thresholds()["table"]
+        idx = pd.DatetimeIndex([local("2026-09-29 03:00"), local("2026-09-29 14:00"), local("2026-12-25 14:00")])
+        liters = pd.Series([60.0, 250.0, 250.0], index=idx)   # night over 50; day under 300; Christmas over 200
+        hits = hour_alarms(liters, t)
+        self.assertEqual([h[0] for h in hits], [idx[0], idx[2]])
+        self.assertEqual(hits[1][2], 200.0)
 
 
 class PredictTest(unittest.TestCase):

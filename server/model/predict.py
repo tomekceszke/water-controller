@@ -17,10 +17,11 @@ import numpy as np
 import pandas as pd
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+import features  # noqa: E402
 from anomaly import FLOW_IND, band_of, flow_limits  # noqa: E402
 from features import TZ, calendar  # noqa: E402
 
-OUT = pathlib.Path(__file__).resolve().parent / "out"
+OUT = features.OUT
 DAYS = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"]
 
 

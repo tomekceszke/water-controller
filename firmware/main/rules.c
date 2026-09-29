@@ -28,6 +28,9 @@ const char *rules_name(rule_t rule)
         case RULE_NIGHT:      return "night";
         case RULE_VACATION:   return "vacation";
         case RULE_LEAK:       return "leak";
+        case RULE_LEARNED_DURATION: return "learned_duration";
+        case RULE_LEARNED_VOLUME:   return "learned_volume";
+        case RULE_NIGHT_FLOWS:      return "night_flows";
         default:              return "none";
     }
 }

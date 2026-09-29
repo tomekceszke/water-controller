@@ -3,7 +3,8 @@
 
   uv run --with-requirements server/model/requirements.txt server/model/data.py [--refresh]
 
-The password is PG_READ_PASS from server/secrets.env (or the environment).
+The password is PG_READ_PASS from server/secrets.env (or the environment). On hc-data the service sets
+WC_PG_DSN="dbname=water" instead and connects over the local socket with peer authentication.
 """
 import argparse
 import os
@@ -12,7 +13,8 @@ import pathlib
 import pandas as pd
 
 HERE = pathlib.Path(__file__).resolve().parent
-CACHE = HERE / "data" / "flows.parquet"
+STATE = pathlib.Path(os.environ.get("WC_MODEL_STATE", HERE))
+CACHE = STATE / "data" / "flows.parquet"
 SECRETS = HERE.parent / "secrets.env"
 HOST = "192.168.11.16"
 PRODUCTION = "30aea40aba44"  # the spare board's test flows (2026-09-15) are left out
@@ -36,7 +38,10 @@ def _password():
 
 def fetch():
     import psycopg
-    with psycopg.connect(host=HOST, dbname="water", user="wc_read", password=_password(), connect_timeout=10) as c:
+    dsn = os.environ.get("WC_PG_DSN")
+    conn = (psycopg.connect(dsn, connect_timeout=10) if dsn else
+            psycopg.connect(host=HOST, dbname="water", user="wc_read", password=_password(), connect_timeout=10))
+    with conn as c:
         cur = c.execute(SQL, (PRODUCTION,))
         cols = [d.name for d in cur.description]
         df = pd.DataFrame(cur.fetchall(), columns=cols)

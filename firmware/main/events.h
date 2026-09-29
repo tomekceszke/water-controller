@@ -20,6 +20,9 @@ typedef struct {
     uint8_t valve_state;    // EV_VALVE
     uint8_t reason;         // EV_VALVE: valve_reason_t, EV_RULE: rule_t
     bool closed;            // EV_FLOW_END: flow ended by a close; EV_RULE: close requested
+    int8_t hour;            // EV_RULE learned: local hour the limit belongs to, -1 otherwise
+    uint32_t value;         // EV_RULE learned: seconds, liters or flows (by rule)
+    uint32_t limit;         // EV_RULE learned: the limit in the same unit; 0 for other events
     char detail[24];
 } event_t;
 

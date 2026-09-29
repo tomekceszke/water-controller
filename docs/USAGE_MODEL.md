@@ -212,5 +212,4 @@ The strongest alarms on the test period (known events excluded):
 ## Next
 
 - Label the events above in `known_events.csv` (pool / hose / drip).
-- Server side: score new flows from MQTT against `thresholds.json` and send ntfy alerts after the fact.
-- Device side: publish night limits as a retained `water/<mac>/config` for Tier 2, accepted only within hard bounds; Tier 1 stays independent of all of this.
+- Online part (firmware 3.4.0, `wc-model` on hc-data): the per-hour flow limits reach the device as a retained `water/<mac>/config` and notify live (never close the valve); hc-data retrains monthly and checks the hourly totals. Tier 1 stays independent of all of this.

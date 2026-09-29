@@ -4,6 +4,7 @@ Everything here is pure pandas on a flows DataFrame (see data.py), so it is unit
 Times: flows carry tz-aware UTC timestamps; the hourly grid is built in UTC (no DST holes or duplicates) and the
 calendar features come from Europe/Warsaw local time.
 """
+import os
 import pathlib
 
 import holidays
@@ -12,6 +13,9 @@ import pandas as pd
 
 TZ = "Europe/Warsaw"
 HERE = pathlib.Path(__file__).resolve().parent
+# Cache and outputs; on hc-data the service points this at /var/lib/wc-model (the code directory is read-only)
+STATE = pathlib.Path(os.environ.get("WC_MODEL_STATE", HERE))
+OUT = STATE / "out"
 
 # Firmware 3.2.1+ publishes only flows of at least 0.1 L (FLOW_EVENT_MIN_ML); legacy published everything
 # (27 % of its flows are smaller). Flow counts and per-flow models use the same cut on both sides.

@@ -27,13 +27,14 @@ from sklearn.covariance import MinCovDet
 from sklearn.metrics import mean_pinball_loss
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+import features  # noqa: E402
 from data import load_flows  # noqa: E402
 from features import (FLOW_MIN_L, SPLITS, TZ, calendar, clean_flows, flow_frame, hourly_frame,  # noqa: E402
                       load_known_events)
 from models import GBM  # noqa: E402
 from train import candidates, level_factor, usable, window  # noqa: E402
 
-OUT = pathlib.Path(__file__).resolve().parent / "out"
+OUT = features.OUT
 MERGE_GAP = pd.Timedelta(seconds=5)  # firmware: a pause longer than 5 s ends a flow
 
 FLOW_IND = {

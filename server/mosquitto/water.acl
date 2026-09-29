@@ -11,3 +11,7 @@ topic read water/+/config
 
 user wc-ingest
 topic read water/#
+
+# Learned limits from the usage model (server/model/publish.py), retained
+user wc-model
+topic write water/+/config

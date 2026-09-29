@@ -21,6 +21,7 @@ import numpy as np  # noqa: E402
 import pandas as pd  # noqa: E402
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+import features  # noqa: E402
 from anomaly import flow_limits  # noqa: E402
 from data import load_flows  # noqa: E402
 from features import SPLITS, TZ, calendar, hourly_frame, load_known_events  # noqa: E402
@@ -28,7 +29,7 @@ from models import GBM  # noqa: E402
 from train import candidates, level_factor, usable, window  # noqa: E402
 
 HERE = pathlib.Path(__file__).resolve().parent
-OUT = HERE / "out"
+OUT = features.OUT
 ROOT = HERE.parents[1]
 IMG = ROOT / "docs" / "img"
 DOC = ROOT / "docs" / "USAGE_MODEL.md"
@@ -530,9 +531,9 @@ def render(mh, ma, th, df, flows):
     w("## Next")
     w("")
     w("- Label the events above in `known_events.csv` (pool / hose / drip).")
-    w("- Server side: score new flows from MQTT against `thresholds.json` and send ntfy alerts after the fact.")
-    w("- Device side: publish night limits as a retained `water/<mac>/config` for Tier 2, accepted only within hard "
-      "bounds; Tier 1 stays independent of all of this.")
+    w("- Online part (firmware 3.4.0, `wc-model` on hc-data): the per-hour flow limits reach the device as a retained "
+      "`water/<mac>/config` and notify live (never close the valve); hc-data retrains monthly and checks the hourly "
+      "totals. Tier 1 stays independent of all of this.")
     w("")
     return "\n".join(lines)
 

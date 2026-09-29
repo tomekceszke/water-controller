@@ -99,6 +99,17 @@ cJSON *api_status_json(void)
     cJSON_AddBoolToObject(tier2, "last_rule_closed", p.last_rule_closed);
     cJSON_AddNumberToObject(tier2, "dropped_samples", p.dropped_samples);
 
+    protect_learned_t l;
+    protect_learned_status(&l);
+    cJSON *learned = cJSON_AddObjectToObject(root, "learned");
+    cJSON_AddBoolToObject(learned, "active", l.active);
+    cJSON_AddStringToObject(learned, "generated", l.generated);
+    cJSON_AddBoolToObject(learned, "notify", l.notify);
+    cJSON_AddNumberToObject(learned, "limit_s", l.limit_s);
+    cJSON_AddNumberToObject(learned, "limit_l", l.limit_l);
+    cJSON_AddNumberToObject(learned, "night_flows", l.night_flows);
+    cJSON_AddNumberToObject(learned, "night_limit", l.night_limit);
+
     add_settings(cJSON_AddObjectToObject(root, "settings"), &s);
 
     hi_mqtt_stats_t ts;
@@ -162,6 +173,11 @@ static esp_err_t events_handler(httpd_req_t *req)
                 cJSON_AddStringToObject(o, "rule", rules_name((rule_t) e->reason));
                 cJSON_AddBoolToObject(o, "closed", e->closed);
                 cJSON_AddStringToObject(o, "detail", e->detail);
+                if (e->limit) {     // learned limits: what was measured, the usual limit and its hour
+                    cJSON_AddNumberToObject(o, "value", e->value);
+                    cJSON_AddNumberToObject(o, "limit", e->limit);
+                    cJSON_AddNumberToObject(o, "hour", e->hour);
+                }
                 break;
             case EV_ALERT:
                 cJSON_AddStringToObject(o, "type", "alert");
@@ -234,12 +250,38 @@ static esp_err_t settings_handler(httpd_req_t *req)
     const cJSON *vacation = cJSON_GetObjectItemCaseSensitive(body, "vacation");
     if (cJSON_IsBool(vacation)) s.vacation = cJSON_IsTrue(vacation);
     json_u32(body, "vacation_max_liters", &s.vacation_max_liters);
+    // Kept outside settings_t: its NVS blob has a fixed size and a new field would reset the stored settings
+    const cJSON *learned_notify = cJSON_GetObjectItemCaseSensitive(body, "learned_notify");
+    if (cJSON_IsBool(learned_notify)) protect_learned_set_notify(cJSON_IsTrue(learned_notify));
     cJSON_Delete(body);
 
     esp_err_t err = settings_set(&s);
     ESP_LOGW(TAG, "(not error) Settings changed: Tier 1 %lu s", (unsigned long) s.tier1_limit_s);
     if (err != ESP_OK) return hi_httpd_send_error(req, "500 Internal Server Error", "save_failed");
     return hi_httpd_send_json(req, "200 OK", api_status_json());
+}
+
+/* Today's liters per local hour next to what the learned model expects (History chart). */
+static esp_err_t learned_handler(httpd_req_t *req)
+{
+    esp_err_t result;
+    if (!hi_httpd_guard(req, HI_GUARD_SESSION, NULL, &result)) return result;
+    settings_t s;
+    settings_get(&s);
+    static protect_learned_day_t day;   // 300 B: off the httpd stack
+    cJSON *root = cJSON_CreateObject();
+    if (protect_learned_today(&day, s.pulses_per_liter)) {
+        cJSON_AddNumberToObject(root, "hour_now", day.hour_now);
+        cJSON *exp = cJSON_AddArrayToObject(root, "expected_l");
+        cJSON *p90 = cJSON_AddArrayToObject(root, "p90_l");
+        cJSON *used = cJSON_AddArrayToObject(root, "used_l");
+        for (int h = 0; h < 24; h++) {
+            cJSON_AddItemToArray(exp, cJSON_CreateNumber(day.exp_l_x10[h] / 10.0));
+            cJSON_AddItemToArray(p90, cJSON_CreateNumber(day.p90_l_x10[h] / 10.0));
+            cJSON_AddItemToArray(used, cJSON_CreateNumber(day.used_l_x10[h] / 10.0));
+        }
+    }
+    return hi_httpd_send_json(req, "200 OK", root);
 }
 
 static esp_err_t minutes_from_body(httpd_req_t *req, uint32_t *minutes, esp_err_t *result)
@@ -325,6 +367,7 @@ void api_start(void)
     const httpd_uri_t routes[] = {
         {.uri = "/api/status", .method = HTTP_GET, .handler = status_handler},
         {.uri = "/api/events", .method = HTTP_GET, .handler = events_handler},
+        {.uri = "/api/learned", .method = HTTP_GET, .handler = learned_handler},
         {.uri = "/api/valve", .method = HTTP_POST, .handler = valve_handler},
         {.uri = "/api/settings", .method = HTTP_POST, .handler = settings_handler},
         {.uri = "/api/snooze", .method = HTTP_POST, .handler = snooze_handler},

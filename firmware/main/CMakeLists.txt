@@ -3,6 +3,7 @@ idf_component_register(
          "tier0.c"
          "tier1.c"
          "rules.c"
+         "learned.c"
          "valve.c"
          "settings.c"
          "flow.c"

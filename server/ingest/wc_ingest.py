@@ -40,8 +40,9 @@ SQL = {
         VALUES (%(device)s, to_timestamp(%(ts)s), %(state)s, %(reason)s, %(detail)s)
         ON CONFLICT (device, ts, state) DO NOTHING""",
     "rule": """
-        INSERT INTO rule_event (device, ts, rule, close, pulses, detail)
-        VALUES (%(device)s, to_timestamp(%(ts)s), %(rule)s, %(close)s, %(pulses)s, %(detail)s)
+        INSERT INTO rule_event (device, ts, rule, close, pulses, detail, measured, usual_limit)
+        VALUES (%(device)s, to_timestamp(%(ts)s), %(rule)s, %(close)s, %(pulses)s, %(detail)s, %(measured)s,
+                %(usual_limit)s)
         ON CONFLICT (device, ts, rule) DO NOTHING""",
     "alert": """
         INSERT INTO alert_event (device, ts, detail)
@@ -131,6 +132,9 @@ def parse(topic, payload):
     elif kind == "rule":
         row.update(ts=_ts(data, "ts"), rule=_str(data, "rule"), close=_bool(data, "close"),
                    pulses=_int(data, "pulses", required=False), detail=_str(data, "detail"))
+        # Learned limits (firmware 3.4+); older firmware sends neither, and 0 means "not a learned rule"
+        row.update(measured=_int(data, "value", required=False) or None,
+                   usual_limit=_int(data, "limit", required=False) or None)
     elif kind == "alert":
         row.update(ts=_ts(data, "ts"), detail=_str(data, "detail"))
     return kind, row

@@ -36,6 +36,9 @@ typedef enum {
     RULE_NIGHT,
     RULE_VACATION,
     RULE_LEAK,                      // notification only
+    RULE_LEARNED_DURATION,          // Tier 2b (learned.c), notification only
+    RULE_LEARNED_VOLUME,
+    RULE_NIGHT_FLOWS,
 } rule_t;
 
 typedef struct {

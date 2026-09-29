@@ -8,7 +8,7 @@ cd "$(dirname "$0")"
 SECRETS=/etc/wc-server/secrets.env
 [ -f "$SECRETS" ] || { echo "$SECRETS missing" >&2; exit 1; }
 set -a; . "$SECRETS"; set +a
-: "${MQTT_DEVICE_PASS:?}" "${MQTT_INGEST_PASS:?}" "${PG_READ_PASS:?}"
+: "${MQTT_DEVICE_PASS:?}" "${MQTT_INGEST_PASS:?}" "${PG_READ_PASS:?}" "${MQTT_MODEL_PASS:?}"
 
 echo "== packages"
 for pkg in mosquitto mosquitto-clients postgresql python3-venv; do
@@ -30,6 +30,7 @@ install -m 640 -o root -g mosquitto mosquitto/water.acl /etc/mosquitto/acl.d/wat
 PASSWD_TMP=$(mktemp)
 mosquitto_passwd -c -b "$PASSWD_TMP" water-controller "$MQTT_DEVICE_PASS"
 mosquitto_passwd -b "$PASSWD_TMP" wc-ingest "$MQTT_INGEST_PASS"
+mosquitto_passwd -b "$PASSWD_TMP" wc-model "$MQTT_MODEL_PASS"
 install -m 640 -o root -g mosquitto "$PASSWD_TMP" /etc/mosquitto/passwd.d/water
 rm -f "$PASSWD_TMP"
 cat /etc/mosquitto/passwd.d/* > /etc/mosquitto/passwd.new
@@ -50,6 +51,7 @@ psql_admin() { runuser -u postgres -- psql -v ON_ERROR_STOP=1 -q "$@"; }
 psql_admin -v read_pass="$PG_READ_PASS" <<'SQL'
 SELECT 'CREATE ROLE wc_ingest LOGIN' WHERE NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'wc_ingest') \gexec
 SELECT 'CREATE ROLE wc_read LOGIN'   WHERE NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'wc_read') \gexec
+SELECT 'CREATE ROLE wc_model LOGIN'  WHERE NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'wc_model') \gexec
 ALTER ROLE wc_read PASSWORD :'read_pass';
 SELECT 'CREATE DATABASE water' WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'water') \gexec
 SQL
@@ -61,15 +63,23 @@ id wc_ingest >/dev/null 2>&1 || useradd --system --no-create-home --shell /usr/s
 venv/bin/pip install -q --disable-pip-version-check -r ingest/requirements.txt
 install -m 644 ingest/wc-ingest.service /etc/systemd/system/wc-ingest.service
 
+echo "== usage model (monthly retraining, hourly check)"
+id wc_model >/dev/null 2>&1 || useradd --system --no-create-home --shell /usr/sbin/nologin wc_model
+[ -x model-venv/bin/python ] || python3 -m venv model-venv
+model-venv/bin/pip install -q --disable-pip-version-check -r model/requirements.txt
+install -m 644 model/wc-model-train.service model/wc-model-train.timer model/wc-model-score.service \
+    model/wc-model-score.timer /etc/systemd/system/
+
 echo "== backups"
 install -d -m 750 -o postgres -g postgres /var/backups/water
 install -m 644 backup/wc-pg-backup.service backup/wc-pg-backup.timer /etc/systemd/system/
 
 systemctl daemon-reload
 systemctl enable -q --now wc-pg-backup.timer
+systemctl enable -q --now wc-model-train.timer wc-model-score.timer
 systemctl enable -q wc-ingest
 systemctl restart wc-ingest
 
 echo "== status"
-systemctl is-active mosquitto postgresql wc-ingest wc-pg-backup.timer
+systemctl is-active mosquitto postgresql wc-ingest wc-pg-backup.timer wc-model-train.timer wc-model-score.timer
 systemctl is-active hc-ingest 2>/dev/null && echo "(heating ingest still running)" || true

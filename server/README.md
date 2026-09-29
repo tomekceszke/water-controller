@@ -24,6 +24,7 @@ ESP32 --MQTT QoS1 water/<mac>/{flow,sample,valve,rule,alert,status}--> Mosquitto
 |---|---|
 | `water-controller` | write `water/+/{flow,sample,valve,rule,alert}`, readwrite `water/+/status`, read `water/+/config` |
 | `wc-ingest` | read `water/#` |
+| `wc-model` | write `water/+/config` (retained learned limits for the device) |
 
 ## Database `water`
 
@@ -61,6 +62,22 @@ The legacy firmware counted with a free-running 16-bit counter and `abs(delta)`,
 ```sh
 uv run --with google-cloud-bigquery server/migrate/bq_export.py   # -> server/migrate/out/ (gitignored)
 server/migrate/import.sh                                          # idempotent
+```
+
+## Usage model (`wc-model`)
+
+Code in `model/` ([README](model/README.md)), its own venv `/opt/wc-server/model-venv`, state (flow cache, models,
+thresholds) in `/var/lib/wc-model`, database access as role `wc_model` over the local socket (peer auth, SELECT plus
+INSERT on `model_alert`).
+
+| Unit | When | What |
+|---|---|---|
+| `wc-model-train.timer` | 1st of the month, 04:10 | `retrain.sh`: refresh the cache, `train.py`, `anomaly.py`, `publish.py` (retained `water/<mac>/config`, held back and ntfy when the guard fails) |
+| `wc-model-score.timer` | hourly at :05 | `score.py`: liters per hour against the learned hour limit (holidays included); `model_alert` + ntfy |
+
+```sh
+ssh root@192.168.11.16 systemctl start wc-model-train.service     # first run after deploy (a few minutes)
+ssh root@192.168.11.16 journalctl -u wc-model-train -u wc-model-score -n 50
 ```
 
 ## Operations

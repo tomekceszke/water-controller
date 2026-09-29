@@ -1,0 +1,9 @@
+[Unit]
+Description=Hourly check of water use against the learned limits
+
+[Timer]
+OnCalendar=*-*-* *:05
+Persistent=true
+
+[Install]
+WantedBy=timers.target

@@ -91,7 +91,19 @@ static void notify(const event_t *e)
             }
             break;
         case EV_RULE:
-            if (!e->closed) {
+            if (e->limit) {     // learned limits (notification only)
+                if (e->reason == RULE_NIGHT_FLOWS) {
+                    snprintf(msg, sizeof(msg), "%lu separate flows tonight, usually at most %lu: check the cisterns",
+                             (unsigned long) e->value, (unsigned long) e->limit);
+                } else if (e->reason == RULE_LEARNED_DURATION) {
+                    snprintf(msg, sizeof(msg), "Water has run %lu min in one go (started %02d:00), usually under %lu min",
+                             (unsigned long) (e->value / 60), e->hour, (unsigned long) ((e->limit + 59) / 60));
+                } else {
+                    snprintf(msg, sizeof(msg), "%lu L in one flow (started %02d:00), usually under %lu L",
+                             (unsigned long) e->value, e->hour, (unsigned long) e->limit);
+                }
+                hi_notify_event_ex("Unusual water use", msg, HI_NOTIFY_PRIO_DEFAULT, "droplet,mag");
+            } else if (!e->closed) {
                 settings_get(&s);
                 snprintf(msg, sizeof(msg), "Water has been running continuously for %lu min (%s)",
                          (unsigned long) s.leak_notify_min, rules_name((rule_t) e->reason));

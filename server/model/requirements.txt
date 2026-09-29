@@ -2,6 +2,7 @@ holidays>=0.60
 joblib>=1.4
 matplotlib>=3.9
 numpy>=2.0
+paho-mqtt>=2.1
 pandas>=2.2
 psycopg[binary]>=3.2
 pyarrow>=17

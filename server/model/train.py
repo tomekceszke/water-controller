@@ -16,11 +16,12 @@ import pandas as pd
 from sklearn.metrics import mean_absolute_error, mean_pinball_loss, mean_poisson_deviance, root_mean_squared_error
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+import features  # noqa: E402
 from data import load_flows  # noqa: E402
 from features import TZ, hourly_frame, load_known_events  # noqa: E402
 from models import GBM, HourOfWeek, PoissonGLM  # noqa: E402
 
-OUT = pathlib.Path(__file__).resolve().parent / "out"
+OUT = features.OUT
 TARGETS = ("liters", "flows")
 # No 0.999: the quantile loss gradient below the prediction is 1 - alpha, so boosting barely moves off the global
 # 0.999 quantile in quiet hours (it predicted ~30 flows for 03:00, where 4 is the most ever seen).

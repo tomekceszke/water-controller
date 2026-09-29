@@ -46,6 +46,10 @@ CREATE TABLE IF NOT EXISTS rule_event (
     PRIMARY KEY (device, ts, rule)
 );
 
+-- Learned limits (firmware 3.4+): what was measured and the usual limit, in the rule's unit (s, L or flows)
+ALTER TABLE rule_event ADD COLUMN IF NOT EXISTS measured integer;
+ALTER TABLE rule_event ADD COLUMN IF NOT EXISTS usual_limit integer;
+
 CREATE TABLE IF NOT EXISTS alert_event (
     device text        NOT NULL,
     ts     timestamptz NOT NULL,
@@ -57,6 +61,17 @@ CREATE TABLE IF NOT EXISTS device_status (
     device     text PRIMARY KEY,
     status     text        NOT NULL,
     updated_at timestamptz NOT NULL DEFAULT now()
+);
+
+-- Server-side checks of the usage model (server/model/score.py): one row per hour and kind
+CREATE TABLE IF NOT EXISTS model_alert (
+    device      text        NOT NULL,
+    hour        timestamptz NOT NULL,
+    kind        text        NOT NULL,
+    value       real        NOT NULL,
+    usual_limit real        NOT NULL,
+    created_at  timestamptz NOT NULL DEFAULT now(),
+    PRIMARY KEY (device, hour, kind)
 );
 
 CREATE TABLE IF NOT EXISTS setting (
@@ -115,3 +130,5 @@ GROUP BY 1, 2;
 GRANT SELECT ON ALL TABLES IN SCHEMA public TO wc_read;
 GRANT SELECT, INSERT, UPDATE ON flow_event, flow_sample, valve_event, rule_event, alert_event, device_status TO wc_ingest;
 GRANT SELECT ON setting TO wc_ingest;
+GRANT SELECT ON ALL TABLES IN SCHEMA public TO wc_model;
+GRANT INSERT ON model_alert TO wc_model;

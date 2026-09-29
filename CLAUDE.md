@@ -19,7 +19,7 @@ The plan is in `~/.claude/plans/cele-odnosnie-tego-projektu-rosy-moler.md`. Stag
 - [x] 4 hc-data (deployed 2026-09-15, history imported; Grafana not done)
 - [x] 5 migration (production 2026-09-15 23:02)
 - [x] 6 docs/portfolio (README, LICENSE, CI)
-- [~] 7 anomaly model (offline model + report done 2026-09-29: `server/model/`, `docs/USAGE_MODEL.md`; alerts and Tier 2 config not yet)
+- [~] 7 anomaly model (offline model + report 2026-09-29: `server/model/`, `docs/USAGE_MODEL.md`; learned limits in firmware 3.4.0 + hc-data service written, not deployed yet)
 - [ ] 8 GCP shutdown
 
 ## Protection tiers (design rule for every change)
@@ -88,16 +88,19 @@ main/
   main.c        boot: NVS → valve_restore → settings → Tier 0/1 task → health → log → Tier 2 → WiFi/notify/NTP/OTA/MQTT/auth/httpd
   tier1.c       pure Tier 1 logic (continuous flow + gap + limit), host-tested
   rules.c       pure Tier 2 rules (volume, burst, night window, micro-leak, vacation, snooze), host-tested
+  learned.c     pure Tier 2b: learned per-hour limits from hc-data (flow duration/volume, night flow count), notify only,
+                config parse + clamp, host-tested
   flow.c        Tier 1 task: PCNT (accumulating, glitch filter 10 us) every 1 s, core 1, task watchdog; valve alert;
                 pulse-interval diagnostics (GPIO ISR, on demand)
   valve.c       only owner of GPIO14; state + reason persisted in NVS and restored at boot (never changed by a reboot)
-  protect.c     Tier 2 task on a sample queue (drops, never blocks Tier 1)
+  protect.c     Tier 2 task on a sample queue (drops, never blocks Tier 1); applies learned limits (NVS wc_learned),
+                today's liters per hour
   settings.c    Tier 1 limit, calibration, Tier 2 thresholds in NVS, clamped
   events.c      RAM ring of the last 50 events, daily totals, ntfy notifications
   telemetry.c   MQTT to hc-data through its own queue and task (timestamps fixed once the clock syncs)
   api.c         routes on the home-idf HTTP server
   config/       config.h (committed), credentials.h (never committed)
-web/            app.html (tabs Live/History/Settings on the home-idf app shell, vanilla, ~11.4 KB gzip), manifest, icon
+web/            app.html (tabs Live/History/Settings on the home-idf app shell, vanilla, ~14 KB gzip), manifest, icon
                 (the sign-in page comes from home-idf: home_idf_login_page() in main/CMakeLists.txt)
 test/           host unit tests (tier0, tier1, rules)
 migrator/       one-shot OTA image (home-idf hi_migrator); build with tools/build_release.sh [--spare]
@@ -112,7 +115,8 @@ Common routes come from home-idf: `/`, `/api/session`, `/api/login`, `/api/logou
 | Method | Path | Guard | Description |
 |---|---|---|---|
 | GET | `/api/status` | session | valve, flow (lpm, liters, Tier 1 remaining), usage, tier2, settings, telemetry, diag, system |
-| GET | `/api/events` | session | last 50 events (flow, valve, rule, alert) |
+| GET | `/api/events` | session | last 50 events (flow, valve, rule, alert); learned rules add `value`, `limit`, `hour` |
+| GET | `/api/learned` | session | today's liters per hour next to the learned expected and p90 values (History chart) |
 | POST | `/api/valve` | mutation | `{state: "open"\|"closed"}` |
 | POST | `/api/settings` | mutation | partial settings (`tier1_limit_s`, `pulses_per_liter`, Tier 2 thresholds), clamped |
 | POST | `/api/snooze` | mutation | `{minutes}`: mute Tier 2 volume/burst/night (vacation stays) |
@@ -134,6 +138,7 @@ The broker is `mqtt://192.168.11.16:1883`, user `water-controller`, QoS 1. Topic
 | `water/<mac>/rule` | Tier 2 triggers |
 | `water/<mac>/alert` | alerts |
 | `water/<mac>/status` | retained `online` / `offline` (LWT) |
+| `water/<mac>/config` | **subscribed**, retained, published by hc-data `wc-model` (`server/model/publish.py`): learned limits, 168 values per array (Mon 00:00 first), clamped by `learned.c`; a deleted message keeps the last limits |
 
 ### UI work
 
@@ -216,9 +221,15 @@ tools/dev_proxy.py <device-ip> --port 8765   # serves firmware/web/app.html rend
   - design (owner picked it on 2026-09-16 from mocks): left-aligned wordmark split on the name's first hyphen,
     accent `W-` at 1.45x over `controller`, no subtitle, field and button both 58 px with a 20 px gap;
   - still to do: gate (`g-controller`), heating and floor-heating when they move to home-idf.
-- [~] Stage 7 anomaly model: offline part done (hourly forecast, thresholds, synthetic-leak evaluation). Still to do:
-  label the `unlabelled` rows in `server/model/known_events.csv` (pool / hose), server-side scoring + ntfy, night
-  limits to Tier 2 via retained `water/<mac>/config`.
+- [~] Stage 7 anomaly model: offline part done (hourly forecast, thresholds, synthetic-leak evaluation). Online part
+  (owner decisions 2026-09-29: device + server, **notify only**, retained MQTT config, four UI pieces) written:
+  home-idf v0.1.14 `hi_mqtt_subscribe`, firmware 3.4.0 (`learned.c`, `/api/learned`, app), hc-data `wc-model`
+  (monthly `retrain.sh` + guarded `publish.py`, hourly `score.py`, table `model_alert`). Still to do:
+  - `MQTT_MODEL_PASS` in `server/secrets.env`, `server/deploy.sh`, first `wc-model-train.service` run;
+  - spare board test of 3.4.0 with a hand-published config, then production OTA (owner OK);
+  - label the `unlabelled` rows in the private `server/model/known_events.csv` (pool / hose).
+  - `learned_notify` lives in NVS `wc_learned`, not in `settings_t` (its blob has a fixed size: a new field would
+    reset the stored settings).
   - Legacy volumes of long flows can carry an undetected counter wrap (+80 L): `features.clean_flows` removes wraps
     from legacy flows averaging over 26 L/min; durations and counts are unaffected.
 - [ ] Stage 8 GCP shutdown (not before 2026-09-29).

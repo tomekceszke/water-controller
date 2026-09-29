@@ -11,6 +11,7 @@
 #include "api.h"
 
 #include "config/config.h"
+#include "protect.h"
 #include "rules.h"
 #include "settings.h"
 #include "telemetry.h"
@@ -21,10 +22,11 @@
  *   water/<mac>/flow     {"start":<unix>,"stop":<unix>,"pulses":n,"liters":x,"max_lpm":x,"closed":bool}
  *   water/<mac>/sample   {"ts":<unix>,"pulses":n,"period_ms":n,"lpm":x,"flow_pulses":n}
  *   water/<mac>/valve    {"ts":<unix>,"state":"open|closed","reason":"...","detail":"..."}
- *   water/<mac>/rule     {"ts":<unix>,"rule":"...","close":bool,"pulses":n,"detail":"..."}
+ *   water/<mac>/rule     {"ts":<unix>,"rule":"...","close":bool,"pulses":n,"detail":"...","value":n,"limit":n}
  *   water/<mac>/alert    {"ts":<unix>,"detail":"..."}
  *   water/<mac>/status   "online" / "offline" (retained, LWT; published by hi_mqtt)
  *   water/<mac>/state    the full status JSON (retained; published by hi_mqtt)
+ *   water/<mac>/config   subscribed: learned limits from hc-data (retained), handed to Tier 2 (protect.c)
  * Items created before the clock is synced wait in the queue and get their wall-clock time once it is.
  */
 
@@ -87,8 +89,9 @@ static void publish_item(const item_t *item)
             break;
         case EV_RULE:
             snprintf(p, sizeof(p), "{\"ts\":%" PRId64 ",\"rule\":\"%s\",\"close\":%s,\"pulses\":%" PRIu32
-                     ",\"detail\":\"%s\"}", ts, rules_name((rule_t) e->reason), e->closed ? "true" : "false",
-                     e->pulses, e->detail);
+                     ",\"detail\":\"%s\",\"value\":%" PRIu32 ",\"limit\":%" PRIu32 "}", ts,
+                     rules_name((rule_t) e->reason), e->closed ? "true" : "false", e->pulses, e->detail, e->value,
+                     e->limit);
             publish("rule", p);
             break;
         case EV_ALERT:
@@ -138,6 +141,10 @@ void telemetry_start(const char *mqtt_pass)
     }
     if (xTaskCreate(telemetry_task, "telemetry", 4096, NULL, 3, NULL) != pdPASS) {
         ESP_LOGW(TAG, "Telemetry task not started");
+    }
+    // Learned limits from hc-data (retained, so they arrive on every connection); Tier 2 parses them
+    if (hi_mqtt_subscribe("config", LEARNED_JSON_MAX, protect_learned_offer) != ESP_OK) {
+        ESP_LOGW(TAG, "Learned limits: subscription failed");
     }
 }
 

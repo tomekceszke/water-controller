@@ -33,6 +33,15 @@ class ParseTest(unittest.TestCase):
         self.assertTrue(parse(*msg("rule", ts=NOW, rule="max_volume", close=True, pulses=2862, detail="6 L"))[1]["close"])
         self.assertEqual(parse(*msg("alert", ts=NOW, detail="6.2 L/min"))[1]["detail"], "6.2 L/min")
 
+    def test_learned_rule_fields(self):
+        _, row = parse(*msg("rule", ts=NOW, rule="learned_duration", close=False, pulses=36900, detail="900 > 180",
+                            value=900, limit=180))
+        self.assertEqual((row["measured"], row["usual_limit"]), (900, 180))
+        _, old = parse(*msg("rule", ts=NOW, rule="max_volume", close=True, pulses=2862, detail="6 L"))
+        self.assertEqual((old["measured"], old["usual_limit"]), (None, None))
+        _, zero = parse(*msg("rule", ts=NOW, rule="max_volume", close=True, pulses=2862, detail="6 L", value=0, limit=0))
+        self.assertIsNone(zero["usual_limit"])
+
     def test_status(self):
         self.assertEqual(parse(f"water/{DEV}/status", b"offline"), ("status", {"device": DEV, "status": "offline"}))
         with self.assertRaises(ValueError):
