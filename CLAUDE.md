@@ -7,7 +7,7 @@ optional and must never weaken it.**
 
 ## Status
 
-- **Production runs firmware 3.4.0** (OTA 2026-09-30 17:03, sha256 `ea4ead0a…`, commit `3a62fff`: home-idf 0.1.15, learned limits, three ntfy topics, reopen fix). 3.3.0 ran from 2026-09-21. 3.2.3 (2026-09-17 20:11, `1b69115a…`, commit `e8ed197`): home-idf 0.1.12, landscape dock in the flow, iOS home-screen bottom gap, bootloader IDF version in system status. 3.2.2 (2026-09-16 23:47, `43e6c5f1…`): home-idf 0.1.10 landscape and wide-window layouts. 3.2.1 (23:03, `7a4da36d…`): flows under 0.1 L counted in totals, not listed. 3.2.0 (17:19, `ca0bc89a…`) brought the home-idf 0.1.8 app shell and the 410 pulses/L default. 3.1.0 moved it to the ESP-IDF 5.4.2 bootloader and partition table over the air on 2026-09-15 at 23:02, see `docs/IDF5_MIGRATION.md`.
+- **Production runs firmware 3.4.1** (OTA 2026-09-30 20:45, sha256 `b79c1a32…`, commit `9d0b6fa`: learned limits as Tier 3, the coming night's limits in Settings). 3.4.0 (17:03, `ea4ead0a…`, commit `3a62fff`): home-idf 0.1.15, learned limits, three ntfy topics, reopen fix. 3.3.0 ran from 2026-09-21. 3.2.3 (2026-09-17 20:11, `1b69115a…`, commit `e8ed197`): home-idf 0.1.12, landscape dock in the flow, iOS home-screen bottom gap, bootloader IDF version in system status. 3.2.2 (2026-09-16 23:47, `43e6c5f1…`): home-idf 0.1.10 landscape and wide-window layouts. 3.2.1 (23:03, `7a4da36d…`): flows under 0.1 L counted in totals, not listed. 3.2.0 (17:19, `ca0bc89a…`) brought the home-idf 0.1.8 app shell and the 410 pulses/L default. 3.1.0 moved it to the ESP-IDF 5.4.2 bootloader and partition table over the air on 2026-09-15 at 23:02, see `docs/IDF5_MIGRATION.md`.
   - Updates from now on: `tools/build_release.sh`, publish `releases/water-controller.bin` as `water-controller.bin` on the OTA server, `POST /admin/su` (or the Device tab).
 - The legacy firmware (5.1.1, snapshot `fcb43e8`, findings in `docs/INVENTORY.md`) lives in `legacy/water-controller-5.1.1/` (gitignored) for reference.
 
@@ -19,7 +19,7 @@ The plan is in `~/.claude/plans/cele-odnosnie-tego-projektu-rosy-moler.md`. Stag
 - [x] 4 hc-data (deployed 2026-09-15, history imported; Grafana not done)
 - [x] 5 migration (production 2026-09-15 23:02)
 - [x] 6 docs/portfolio (README, LICENSE, CI)
-- [~] 7 anomaly model (offline model + report 2026-09-29: `server/model/`, `docs/USAGE_MODEL.md`; learned limits in firmware 3.4.0 (production 2026-09-30), hourly check deployed on hc-data)
+- [~] 7 anomaly model (offline model + report 2026-09-29: `server/model/`, `docs/USAGE_MODEL.md`; learned limits (Tier 3) in firmware 3.4.x (production 2026-09-30), hourly check deployed on hc-data)
 - [x] 8 GCP shutdown (resources deleted 2026-09-21; sources and keys archived in `legacy/gcp`, `legacy/certs`)
 
 ## Protection tiers (design rule for every change)
