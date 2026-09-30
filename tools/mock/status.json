@@ -1,0 +1,99 @@
+{
+ "valve": {
+  "state": "open",
+  "reason": "user",
+  "detail": "192.168.1.20",
+  "changed_at": 0
+ },
+ "flow": {
+  "flowing": false,
+  "lpm": 0,
+  "liters": 0.004878048780487805,
+  "seconds": 1,
+  "max_lpm": 0.1,
+  "tier0_limit_s": 3600,
+  "tier1_limit_s": 1800,
+  "tier1_remaining_s": 0,
+  "tier1_alive": true,
+  "counter": 12508
+ },
+ "usage": {
+  "liters_today": 30.507317073170732,
+  "liters_since_boot": 30.507317073170732,
+  "flows_since_boot": 8,
+  "small_flows_today": 7,
+  "small_flows_since_boot": 7
+ },
+ "tier2": {
+  "snooze_left_s": 0,
+  "last_rule": "none",
+  "last_rule_at": 0,
+  "last_rule_closed": false,
+  "dropped_samples": 0
+ },
+ "learned": {
+  "active": true,
+  "generated": "2026-09-30",
+  "notify": true,
+  "limit_s": 1150,
+  "limit_l": 270,
+  "night_s": 182,
+  "night_l": 30,
+  "night_flows": 0,
+  "night_limit": 10,
+  "close_night": false
+ },
+ "settings": {
+  "tier1_limit_s": 1800,
+  "tier1_limit_min_s": 60,
+  "tier1_limit_max_s": 2700,
+  "pulses_per_liter": 410,
+  "max_event_liters": 0,
+  "burst_lpm": 40,
+  "burst_s": 0,
+  "night_start_h": 0,
+  "night_end_h": 5,
+  "night_max_liters": 0,
+  "leak_notify_min": 0,
+  "vacation": false,
+  "vacation_max_liters": 5,
+  "tier2_max_s": 1350,
+  "tier2_max_l": 270
+ },
+ "telemetry": {
+  "enabled": true,
+  "connected": true,
+  "dropped": 0,
+  "queue_dropped": 0,
+  "outbox_bytes": 0
+ },
+ "diag": {
+  "running": false,
+  "left_s": 0,
+  "edges": 0,
+  "short_intervals": 0,
+  "min_interval_us": 0
+ },
+ "system": {
+  "version": "3.4.1",
+  "idf": "v5.4.2",
+  "bootloader_idf": "v5.4.2",
+  "partition": "ota_1",
+  "pending_verify": false,
+  "reset_reason": "software",
+  "uptime_s": 4282,
+  "up_since": "",
+  "time_synced": true,
+  "ota_running": false,
+  "heap_kb": {
+   "free": 163,
+   "min": 81
+  },
+  "wifi": {
+   "connected": true,
+   "rssi": -65,
+   "channel": 6,
+   "bssid": "02:00:00:00:00:01"
+  }
+ }
+}

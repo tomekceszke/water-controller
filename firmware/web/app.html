@@ -57,6 +57,7 @@
 .rules .rule-on { color: var(--text); font-size: 15px; line-height: 2.4; }
 .rules li:not(.on) .rule-on, .rules li.on .rule-off { display: none; }
 .rules input[type=number] { width: 58px; padding: 5px 6px; margin: 0 3px; }
+h2.sec .tier { font: 500 13px/1.2 var(--round); color: var(--muted); }
 
 /* Learned limits: the usual length of a flow at this hour, and today against a typical day */
 .usual { color: var(--muted); font-size: 14px; margin-top: 8px; }
@@ -67,7 +68,7 @@
 .day .bar { fill: var(--accent); }
 .day .bar.high { fill: var(--warn); }
 .day text { fill: var(--muted); font: 11px var(--round); }
-.legend { display: flex; gap: 14px; color: var(--muted); font-size: 13px; margin-top: 6px; flex-wrap: wrap; }
+.legend { display: flex; justify-content: space-between; gap: 14px; color: var(--muted); font-size: 13px; margin-top: 6px; flex-wrap: wrap; }
 .legend i { display: inline-block; width: 12px; height: 8px; border-radius: 2px; margin-right: 5px; vertical-align: middle; }
 </style>
 </head>
@@ -119,9 +120,9 @@
     </div>
     <p class="note" id="hSmall" hidden></p>
     <div id="daySection" hidden>
-      <h2 class="sec">Today vs a typical day</h2>
-      <svg class="day" id="daySvg" viewBox="0 0 360 150" role="img" aria-label="Liters per hour today against the usual range"></svg>
-      <div class="legend"><span><i style="background:var(--accent)"></i>today</span><span><i style="background:var(--line)"></i>usual range</span><span><i style="background:none;border-top:2px dashed var(--muted);height:0"></i>typical</span></div>
+      <h2 class="sec">Today vs a usual day</h2>
+      <svg class="day" id="daySvg" viewBox="0 0 360 150" role="img" aria-label="Liters per hour today against 9 in 10 days and the average"></svg>
+      <div class="legend"><span><i style="background:var(--accent)"></i>today</span><span><i style="background:var(--line)"></i>9 in 10 days</span><span><i style="background:none;border-top:2px dashed var(--muted);height:0"></i>average</span></div>
     </div>
     <h2 class="sec">Events</h2>
     <ul class="events" id="events"></ul>
@@ -132,20 +133,18 @@
     <header class="top">@HI_APP_WORDMARK@</header>
     <h1 class="page">Settings</h1>
 
-    <h2 class="sec">Shut-off limit</h2>
-    <ul class="list">
-      <li>
-        <div class="k">Continuous flow<small>Always on, works without Wi-Fi, up to 45 min</small></div>
-        <div class="stepper">
-          <button type="button" data-step="-1" aria-label="Shorter">−</button>
-          <output id="limitOut">20 min</output>
-          <button type="button" data-step="1" aria-label="Longer">+</button>
-        </div>
-      </li>
-    </ul>
-    <p class="note">The valve closes when water runs without a break for longer than this. Independently of this setting, it always closes after 1 hour of continuous flow; turn the water back on to continue. Smart rules and learned limits always act before this limit.</p>
+    <p class="note">A long flow meets these in order: a notice, a smart rule, your shut-off limit, the safety limit.</p>
 
-    <h2 class="sec">Smart rules</h2>
+    <h2 class="sec">Learned limits<small class="tier" id="tier3Label">Tier 3 · notifies</small></h2>
+    <ul class="list rules">
+      <li id="learnedItem"><div class="head"><span>Unusual use</span><label class="switch"><input type="checkbox" id="learnedToggle" aria-label="Unusual use"><i></i></label></div>
+        <p id="learnedText">No learned limits yet. They arrive from hc-data.</p></li>
+      <li id="learnedCloseItem"><div class="head"><span>Shut off at night</span><label class="switch"><input type="checkbox" id="learnedCloseToggle" aria-label="Shut off at night"><i></i></label></div>
+        <p id="learnedCloseText">Closes the valve when a flow starting between 1:00 and 6:00 passes the night limit. Flows per night only notify.</p></li>
+    </ul>
+    <p class="note" id="learnedNote" hidden></p>
+
+    <h2 class="sec">Smart rules<small class="tier">Tier 2 · shuts off</small></h2>
     <ul class="list rules" id="rules">
       <li><div class="head"><span>Too much in one go</span><label class="switch"><input type="checkbox" data-toggle="max_event_liters" aria-label="Too much in one go"><i></i></label></div>
         <p class="rule-off">Shuts off when a single flow uses a lot of water.</p>
@@ -164,19 +163,31 @@
         <p class="rule-on">Shut off after <input type="number" min="1" max="10000" data-rule="vacation_max_liters" aria-label="Liters when away"> liters</p></li>
     </ul>
     <p class="note" id="capNote"></p>
-    <p class="note" id="snoozeNote">Watering the garden? Pause the smart rules for a while. The shut-off limit stays on.</p>
+    <p class="note" id="snoozeNote">Watering the garden? Pause the smart rules for a while. The shut-off and safety limits stay on.</p>
     <div class="chips inline">
       <button class="chip" type="button" data-snooze="30">30 min</button>
       <button class="chip" type="button" data-snooze="120">2 hours</button>
       <button class="chip" type="button" data-snooze="0" id="snoozeCancel" hidden>Resume rules</button>
     </div>
 
-    <h2 class="sec">Learned limits</h2>
-    <ul class="list rules">
-      <li id="learnedItem"><div class="head"><span>Unusual use</span><label class="switch"><input type="checkbox" id="learnedToggle" aria-label="Unusual use"><i></i></label></div>
-        <p id="learnedText">No learned limits yet. They arrive from hc-data.</p></li>
+    <h2 class="sec">Shut-off limit<small class="tier">Tier 1 · shuts off</small></h2>
+    <ul class="list">
+      <li>
+        <div class="k">Continuous flow<small>Always on, works without Wi-Fi, up to 45 min</small></div>
+        <div class="stepper">
+          <button type="button" data-step="-1" aria-label="Shorter">−</button>
+          <output id="limitOut">20 min</output>
+          <button type="button" data-step="1" aria-label="Longer">+</button>
+        </div>
+      </li>
     </ul>
-    <p class="note" id="learnedNote" hidden></p>
+    <p class="note">The valve closes when water runs without a break for longer than this. Smart rules act before it.</p>
+
+    <h2 class="sec">Safety limit<small class="tier">Tier 0 · fixed</small></h2>
+    <ul class="list">
+      <li><div class="k"><span id="tier0Text">1 hour of continuous flow</span><small>Built into the firmware; no setting can change it</small></div></li>
+    </ul>
+    <p class="note">After it closes, turn the water back on to continue.</p>
 
     <h2 class="sec">Flow meter</h2>
     <ul class="list">
@@ -218,13 +229,15 @@ let valveBusy = false;
 const fmtL = v => v < 10 ? v.toFixed(1) : Math.round(v).toLocaleString("en");
 const fmtMin = s => s % 3600 === 0 ? `${s / 3600} h` : `${Math.round(s / 60)} min`;
 const defaults = {max_event_liters: 150, burst_lpm: 40, burst_s: 60, night_max_liters: 20, leak_notify_min: 120, vacation_max_liters: 5};
-const reasons = {tier0: "the 1-hour safety limit", tier1: "the shut-off limit", tier2: "a smart rule", user: "you", admin: "a script", restore: "restart"};
+const reasons = {tier0: "the 1-hour safety limit", tier1: "the shut-off limit", tier2: "a smart rule", tier3: "a learned limit at night", user: "you", admin: "a script", restore: "restart"};
 const ruleNames = {max_volume: "too much in one go", burst: "burst pipe", night: "night use", vacation: "away from home", leak: "dripping leak",
   learned_duration: "unusually long flow", learned_volume: "unusually big flow", night_flows: "many flows at night"};
 // Firmware details use rule ids ("max_volume 5 L"): show words instead
-const humanize = text => (text || "").replace(/^closed, /, "").replace(/\b(max_volume|burst|night|vacation|leak)\b/, id => ruleNames[id]);
+const humanize = text => (text || "").replace(/^closed, /, "").replace(/\b(max_volume|burst|night|vacation|leak|learned_duration|learned_volume)\b/, id => ruleNames[id]);
 const hh = h => `${String(h).padStart(2, "0")}:00`;
 const minsUp = s => `${Math.ceil(s / 60)} min`;
+// "over X": a limit of 182 s is over 3 min, not over 4
+const minsOver = s => `${Math.max(1, Math.floor(s / 60))} min`;
 function learnedAge(date) {
   const days = Math.floor((Date.now() - new Date(`${date}T12:00:00`)) / 86400000);
   const label = new Date(`${date}T12:00:00`).toLocaleDateString("en-GB", {day: "numeric", month: "short"});
@@ -297,6 +310,7 @@ function renderLive(s) {
 
 function renderSettings(s) {
   const st = s.settings;
+  $("tier0Text").textContent = `${fmtMin(s.flow.tier0_limit_s).replace(/^1 h$/, "1 hour")} of continuous flow`;
   if (!document.activeElement || !document.activeElement.closest("#settings")) {
     $("limitOut").textContent = fmtMin(st.tier1_limit_s);
     document.querySelectorAll("[data-rule]").forEach(el => { el.value = st[el.dataset.rule]; });
@@ -308,15 +322,22 @@ function renderSettings(s) {
     $("ppl").value = st.pulses_per_liter;
   }
   const l = s.learned || {};   // older firmware has no learned limits
+  const notify = l.active && l.notify, closeNight = notify && l.close_night === true;
   $("learnedToggle").disabled = !l.active;
-  $("learnedToggle").checked = l.active && l.notify;
-  $("learnedItem").classList.toggle("on", l.active && l.notify);
+  $("learnedToggle").checked = notify;
+  $("learnedItem").classList.toggle("on", notify);
+  // older firmware has no night shut-off: hide the switch instead of offering one that does nothing
+  $("learnedCloseItem").hidden = l.close_night === undefined;
+  $("learnedCloseToggle").disabled = !notify;
+  $("learnedCloseToggle").checked = closeNight;
+  $("learnedCloseItem").classList.toggle("on", closeNight);
+  $("tier3Label").textContent = closeNight ? "Tier 3 · notifies, shuts off at night" : "Tier 3 · notifies";
   if (l.active) {
     const age = learnedAge(l.generated);
-    const atNight = l.night_s ? ` At night (1:00-6:00): over ${minsUp(l.night_s)} or ${l.night_l} L.` : "";
+    const atNight = l.night_s ? ` At night (1:00-6:00): over ${minsOver(l.night_s)} or ${l.night_l} L.` : "";
     const tonight = l.night_flows && new Date().getHours() < 6 ? ` Tonight so far: ${l.night_flows} flows, usually at most ${l.night_limit}.` : "";
-    $("learnedText").textContent = `Notifies when a flow runs longer or uses more than usual for its hour. Never shuts off. ` +
-      `Now: over ${minsUp(l.limit_s)} or ${l.limit_l} L.${atNight}${tonight}`;
+    $("learnedText").textContent = `Notifies when a flow runs longer or uses more than usual for its hour. ` +
+      `Now: over ${minsOver(l.limit_s)} or ${l.limit_l} L.${atNight}${tonight}`;
     $("learnedNote").hidden = false;
     $("learnedNote").textContent = `Learned from this home's history on hc-data, ${age.text}.` +
       (age.days > 90 ? " These limits are old: check that hc-data still updates them." : "");
@@ -333,13 +354,14 @@ function renderSettings(s) {
     }
     const b = document.querySelector('[data-rule="burst_s"]');
     if (b) b.max = capS;
-    $("capNote").textContent = `Rules act inside the shut-off limit: at most ${capL} L or ${fmtMin(capS)} (${fmtMin(st.tier1_limit_s)} limit).`;
+    $("capNote").textContent = `Values stay below your ${fmtMin(st.tier1_limit_s)} shut-off limit, or they would never act: ` +
+      `at most ${capL} L per flow, and a burst of at most ${minsOver(capS)}.`;
   }
   $("nightHours").textContent = `${st.night_start_h}:00 and ${st.night_end_h}:00`;
   const snooze = s.tier2.snooze_left_s;
   $("snoozeCancel").hidden = !snooze;
-  $("snoozeNote").textContent = snooze ? `Smart rules paused for ${hi.dur(snooze)}. The shut-off limit stays on.`
-    : "Watering the garden? Pause the smart rules for a while. The shut-off limit stays on.";
+  $("snoozeNote").textContent = snooze ? `Smart rules paused for ${hi.dur(snooze)}. The shut-off and safety limits stay on.`
+    : "Watering the garden? Pause the smart rules for a while. The shut-off and safety limits stay on.";
   const d = s.diag;
   $("diagBtn").textContent = d.running ? "Stop" : "Start";
   $("diagText").textContent = d.running || d.edges
@@ -404,6 +426,7 @@ function eventItem(e) {
     item.small = e.rule === "night_flows" ? `${e.value} flows tonight, usually at most ${e.limit}`
       : e.rule === "learned_duration" ? `${Math.floor(e.value / 60)} min from ${when}, usually under ${minsUp(e.limit)}`
       : `${e.value} L from ${when}, usually under ${e.limit} L`;
+    if (e.closed) item.small += ", shut off";
   } else if (e.type === "rule") {
     item.kind = e.closed ? "warn" : "bad";
     item.what = e.closed ? `Rule: ${ruleNames[e.rule] || e.rule}` : `Possible ${ruleNames[e.rule] || e.rule}`;
@@ -416,7 +439,7 @@ function eventItem(e) {
   return item;
 }
 
-/* History: today's liters per hour over the usual range (p90) and the typical hour. */
+/* History: today's liters per hour over what 9 in 10 days stay under (p90) and the average hour. */
 let dayLoaded = 0;
 async function loadDay() {
   if (Date.now() - dayLoaded < 60000) return;
@@ -437,7 +460,7 @@ async function loadDay() {
     if (h > d.hour_now || v <= 0) return;
     const r = el("rect", {class: v > d.p90_l[h] ? "bar high" : "bar", x: h * bw + 2, y: y(v), width: bw - 4, height: H - y(v), rx: 2});
     const t = document.createElementNS(ns, "title");
-    t.textContent = `${hh(h)}: ${fmtL(v)} L, usually ${fmtL(d.expected_l[h])} L (up to ${fmtL(d.p90_l[h])})`;
+    t.textContent = `${hh(h)}: ${fmtL(v)} L, average ${fmtL(d.expected_l[h])} L, 9 in 10 days under ${fmtL(d.p90_l[h])} L`;
     r.appendChild(t);
   });
   for (const h of [0, 6, 12, 18]) el("text", {x: h * bw + 2, y: H + 15}).textContent = hh(h);
@@ -502,6 +525,7 @@ document.querySelectorAll("[data-rule]").forEach(el => el.addEventListener("chan
   saveSettings({[key]: Number(el.value)});
 }));
 $("learnedToggle").addEventListener("change", () => saveSettings({learned_notify: $("learnedToggle").checked}));
+$("learnedCloseToggle").addEventListener("change", () => saveSettings({learned_close_night: $("learnedCloseToggle").checked}));
 $("ppl").addEventListener("change", () => saveSettings({pulses_per_liter: Number($("ppl").value)}));
 document.querySelectorAll("[data-snooze]").forEach(b => b.addEventListener("click", () => snooze(Number(b.dataset.snooze))));
 $("diagBtn").addEventListener("click", async () => {

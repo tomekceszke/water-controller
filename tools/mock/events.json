@@ -1,0 +1,84 @@
+{
+ "events": [
+  {
+   "ago_s": 900,
+   "type": "flow",
+   "seconds": 66,
+   "liters": 2.0,
+   "max_lpm": 2.0,
+   "closed": false
+  },
+  {
+   "ago_s": 5400,
+   "type": "rule",
+   "rule": "learned_duration",
+   "closed": false,
+   "detail": "1250 > 1150",
+   "value": 1250,
+   "limit": 1150,
+   "hour": 19
+  },
+  {
+   "ago_s": 5500,
+   "type": "flow",
+   "seconds": 1262,
+   "liters": 214.5,
+   "max_lpm": 11.8,
+   "closed": false
+  },
+  {
+   "ago_s": 30000,
+   "type": "valve",
+   "state": "open",
+   "reason": "user",
+   "detail": "192.168.1.20"
+  },
+  {
+   "ago_s": 30300,
+   "type": "valve",
+   "state": "closed",
+   "reason": "tier3",
+   "detail": "learned_volume 31 L"
+  },
+  {
+   "ago_s": 30300,
+   "type": "rule",
+   "rule": "learned_volume",
+   "closed": true,
+   "detail": "31 > 30",
+   "value": 31,
+   "limit": 30,
+   "hour": 3
+  },
+  {
+   "ago_s": 30400,
+   "type": "flow",
+   "seconds": 95,
+   "liters": 31.4,
+   "max_lpm": 21.3,
+   "closed": true
+  },
+  {
+   "ago_s": 86000,
+   "type": "valve",
+   "state": "closed",
+   "reason": "tier1",
+   "detail": "flow > 30 min"
+  },
+  {
+   "ago_s": 86000,
+   "type": "flow",
+   "seconds": 1800,
+   "liters": 356.0,
+   "max_lpm": 12.4,
+   "closed": true
+  },
+  {
+   "ago_s": 90000,
+   "type": "rule",
+   "rule": "night",
+   "closed": true,
+   "detail": "21 L, 18 L/min"
+  }
+ ]
+}
