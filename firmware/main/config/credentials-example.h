@@ -17,7 +17,8 @@
 
 /* ntfy.sh topics (keep them unguessable). Empty disables. */
 #define NTFY_TOPIC                  ""
-#define NTFY_ERROR_TOPIC            ""
+#define NTFY_ERROR_TOPIC            ""     // loud: technical errors and protection alarms (valve shut off)
+#define NTFY_WARNING_TOPIC          ""     // Tier 2 notices (learned limits, dripping leak); empty: NTFY_TOPIC
 
 /* hc-data Mosquitto password for user "water-controller" (see server/). Empty disables telemetry. */
 #define MQTT_PASS                   ""

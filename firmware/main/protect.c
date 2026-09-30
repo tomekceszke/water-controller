@@ -204,7 +204,7 @@ static void protect_task(void *arg)
         if (d.close) {
             char detail[24];
             snprintf(detail, sizeof(detail), "%s %lu L", rules_name(d.rule), (unsigned long) d.liters);
-            ESP_LOGE(TAG, "Rule %s: closing the valve (%s)", rules_name(d.rule), e.detail);
+            ESP_LOGW(TAG, "(not error) Rule %s: closing the valve (%s)", rules_name(d.rule), e.detail);
             valve_set(VALVE_CLOSED, VALVE_BY_TIER2, detail);
         } else {
             ESP_LOGW(TAG, "Rule %s: notification (%s)", rules_name(d.rule), e.detail);

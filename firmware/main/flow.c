@@ -132,7 +132,7 @@ static void flow_task(void *arg)
     uint32_t max_lpm_x10 = 0;
     telemetry_sample_t tele = {0};
     int64_t closed_flow_since_ms = 0;       // water flowing while the valve is closed
-    valve_state_t last_valve = valve_get();
+    uint32_t last_opens = valve_open_count();
     bool alert_sent = false;
     TickType_t wake = xTaskGetTickCount();
     int64_t last_ms = esp_timer_get_time() / 1000;
@@ -156,12 +156,12 @@ static void flow_task(void *arg)
         }
         tier1_config_t cfg = {.limit_s = settings_tier1_limit_s(), .gap_ms = TIER1_GAP_MS};
         // A person opened the valve again: water that is still running gets a fresh limit, never none
-        valve_state_t valve_now = valve_get();
-        if (last_valve == VALVE_CLOSED && valve_now == VALVE_OPEN) {
+        const uint32_t opens = valve_open_count();
+        if (opens != last_opens) {
             tier0_valve_opened(&t0, now_ms);
             tier1_valve_opened(&t1, now_ms);
         }
-        last_valve = valve_now;
+        last_opens = opens;
         bool was_flowing = t1.flowing;
         // Tier 0 first and independent of settings: nothing configurable can raise or disable it
         bool t0_trip = tier0_update(&t0, now_ms, pulses);
@@ -172,7 +172,8 @@ static void flow_task(void *arg)
         if (t1.flowing && lpm_x10 > max_lpm_x10) max_lpm_x10 = lpm_x10;
 
         if (t0_trip) {
-            ESP_LOGE(TAG, "Tier 0: continuous flow for %d min, closing the valve", TIER0_LIMIT_S / 60);
+            // Warning, not error: the shut-off itself reaches the error topic as an alarm (events.c)
+            ESP_LOGW(TAG, "(not error) Tier 0: continuous flow for %d min, closing the valve", TIER0_LIMIT_S / 60);
             char detail[24];
             snprintf(detail, sizeof(detail), "flow > %d min", TIER0_LIMIT_S / 60);
             valve_set(VALVE_CLOSED, VALVE_BY_TIER0, detail);
@@ -180,7 +181,7 @@ static void flow_task(void *arg)
         if (r == TIER1_TRIP) {
             char detail[24];
             snprintf(detail, sizeof(detail), "flow > %lu min", (unsigned long) (cfg.limit_s / 60));
-            ESP_LOGE(TAG, "Tier 1: continuous flow for %lu s, closing the valve", (unsigned long) cfg.limit_s);
+            ESP_LOGW(TAG, "(not error) Tier 1: continuous flow for %lu s, closing the valve", (unsigned long) cfg.limit_s);
             valve_set(VALVE_CLOSED, VALVE_BY_TIER1, detail);
         } else if (r == TIER1_ENDED) {
             publish_flow_end(&t1, now_ms, max_lpm_x10);

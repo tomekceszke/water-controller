@@ -1,12 +1,20 @@
 #!/usr/bin/env python3
-"""End-to-end hardware test for a spare board running a WATER_TEST_PULSES build.
+"""End-to-end hardware test for a spare board running a WATER_TEST_PULSES build (about 8 minutes for everything).
 
 Never point it at production: it closes and opens the valve, changes settings and reboots the device.
 
-Usage: WC_PASSWORD=... WC_ADMIN=... tools/hw_test.py 192.168.11.140
+Usage: WC_PASSWORD=... WC_ADMIN=... tools/hw_test.py 192.168.11.152 [--only tier1,caps] [--list]
   WC_PASSWORD  web password of the test build
   WC_ADMIN     Authorization header value (HEADER_AUTHORIZATION_VALUE)
+  optional, for the "learned" section (needs paho-mqtt: uv run --with paho-mqtt tools/hw_test.py ...):
+  WC_MODEL_MQTT_PASS  server/secrets.env MQTT_MODEL_PASS
+  WC_DEVICE_ID        the board's MQTT id (lowercase STA MAC); spare builds publish under water-spare/
+
+The test build shortens the clock-bound limits so the same logic runs in less time: Tier 0 at 45 s instead of
+60 min, Tier 1 settable from 20 s. The order stays that of production (Tier 1 < Tier 0), and every section ends
+with the settings restored and the valve open, also after a failure.
 """
+import argparse
 import http.cookiejar
 import json
 import os
@@ -15,19 +23,25 @@ import time
 import urllib.error
 import urllib.request
 
-HOST = sys.argv[1]
-BASE = f"http://{HOST}"
-PASSWORD = os.environ["WC_PASSWORD"]
-ADMIN = os.environ["WC_ADMIN"]
-K = 477
+ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+ap.add_argument("host")
+ap.add_argument("--only", help="comma-separated sections (see --list)")
+ap.add_argument("--list", action="store_true", help="list the sections and exit")
+args = ap.parse_args()
+
+BASE = f"http://{args.host}"
+K = 477                 # pulses per liter set for the test (round numbers below)
+TIER0_S = 45            # WATER_TEST_TIER0_S of the test build
+TIER1_S = 20            # shortest Tier 1 limit of the test build
 
 jar = http.cookiejar.CookieJar()
 opener = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(jar))
 csrf = ""
 failures = 0
+PASSWORD = ADMIN = ""
 
 
-def request(method, path, body=None, headers=None, auth=True, use_opener=True):
+def request(method, path, body=None, headers=None, auth=True, use_opener=True, timeout=15):
     h = {"Content-Type": "application/json"} if body is not None else {}
     if auth and csrf:
         h["X-CSRF-Token"] = csrf
@@ -35,7 +49,7 @@ def request(method, path, body=None, headers=None, auth=True, use_opener=True):
     data = json.dumps(body).encode() if body is not None else None
     req = urllib.request.Request(BASE + path, data=data, method=method, headers=h)
     try:
-        with (opener if use_opener else urllib.request.build_opener()).open(req, timeout=15) as r:
+        with (opener if use_opener else urllib.request.build_opener()).open(req, timeout=timeout) as r:
             raw = r.read()
             return r.status, json.loads(raw) if raw[:1] in (b"{", b"[") else raw.decode()
     except urllib.error.HTTPError as e:
@@ -62,8 +76,12 @@ def login():
     csrf = body["csrf"]
 
 
+def admin(path, body):
+    return request("POST", path, body, headers={"Authorization": ADMIN})
+
+
 def pulses(hz, seconds):
-    return request("POST", "/admin/test/pulses", {"hz": hz, "seconds": seconds}, headers={"Authorization": ADMIN})
+    return admin("/admin/test/pulses", {"hz": hz, "seconds": seconds})
 
 
 def settings(**kw):
@@ -76,221 +94,267 @@ def valve(state):
     return request("POST", "/api/valve", {"state": state})
 
 
-def wait_idle(timeout=30):
-    end = time.time() + timeout
-    while time.time() < end:
-        if not status()["flow"]["flowing"]:
-            time.sleep(6)       # Tier 0 joins flows separated by less than 5 s
-            return True
-        time.sleep(1)
-    return False
+def wait_for(pred, timeout):
+    """Seconds until pred() holds (polled every 0.5 s), or None after timeout."""
+    t0 = time.time()
+    while time.time() - t0 < timeout:
+        if pred():
+            return time.time() - t0
+        time.sleep(0.5)
+    return None
+
+
+def closed():
+    return status()["valve"]["state"] == "closed"
+
+
+def wait_idle(timeout=60):
+    if wait_for(lambda: not status()["flow"]["flowing"], timeout) is not None:
+        time.sleep(6)       # Tier 0 joins flows separated by less than 5 s: let this one end for it too
+
+
+def wait_online(timeout=90):
+    def up():
+        try:
+            return request("GET", "/api/session", auth=False, timeout=3)[0] == 200
+        except OSError:
+            return False
+    return wait_for(up, timeout)
 
 
 def reboot_and_login():
     request("POST", "/api/reboot", {})
-    time.sleep(8)
-    for _ in range(40):
-        try:
-            if request("GET", "/api/session", auth=False)[0] == 200:
-                break
-        except OSError:
-            pass
-        time.sleep(1)
-    time.sleep(2)
+    time.sleep(4)
+    wait_online()
     login()
 
 
-def last_event(kind):
+def last_event(kind, since=0, **match):
+    """Newest event of `kind` (at or after `since`, unix s, 1 s slack for the two clocks) matching the fields."""
     events = request("GET", "/api/events")[1]["events"]
-    return next((e for e in events if e["type"] == kind), None)
+    return next((e for e in events if e["type"] == kind and e.get("ts", 0) >= since - 1
+                 and all(e.get(k) == v for k, v in match.items())), None)
 
 
-print("security guards")
-check("status without session -> 401", request("GET", "/api/status", auth=False, use_opener=False)[0] == 401)
-login()
-check("valve without CSRF -> 403", request("POST", "/api/valve", {"state": "closed"}, auth=False)[0] == 403)
-check("foreign Host -> 403", request("GET", "/api/status", headers={"Host": "evil.example"})[0] == 403)
-check("foreign Origin -> 403",
-      request("POST", "/api/valve", {"state": "closed"}, headers={"Origin": "http://evil.example"})[0] == 403)
-check("admin valve without header -> 401", request("POST", "/admin/valve", {"state": "closed"}, auth=False)[0] == 401)
-check("admin hw-status public", request("GET", "/admin/hw-status", auth=False)[0] == 200)
+def restore():
+    pulses(0, 0)
+    admin("/admin/test/tier2", {"suspend": False})
+    request("POST", "/api/snooze", {"minutes": 0})
+    wait_idle()
+    settings(tier1_limit_s=1200, max_event_liters=0, pulses_per_liter=K)
+    if closed():
+        valve("open")
 
-print("baseline")
-settings(tier1_limit_s=1200, max_event_liters=0, pulses_per_liter=K)
-if status()["valve"]["state"] != "open":
-    valve("open")
-check("valve open", status()["valve"]["state"] == "open")
 
-print("pulse counting: 100 Hz for 20 s (2000 pulses)")
-request("POST", "/api/diag", {"minutes": 2})
-pulses(100, 20)
-time.sleep(10)
-s = status()
-check("flowing during pulses", s["flow"]["flowing"], f'lpm={s["flow"]["lpm"]}')
-check("rate ~12.6 L/min", abs(s["flow"]["lpm"] - 100 * 60 / K) < 0.6, f'lpm={s["flow"]["lpm"]}')
-wait_idle()
-e = last_event("flow")
-expected_l = 2000 / K
-check("flow event liters", e is not None and abs(e["liters"] - expected_l) / expected_l < 0.02,
-      f'got {e and e["liters"]:.3f} expected {expected_l:.3f}')
-check("flow event duration ~20 s", e is not None and 18 <= e["seconds"] <= 21, f'{e and e["seconds"]} s')
-d = status()["diag"]
-check("diag edges ~2000", abs(d["edges"] - 2000) <= 20, f'edges={d["edges"]}')
-check("diag min interval ~10 ms", 9000 <= d["min_interval_us"] <= 10100, f'{d["min_interval_us"]} us')
-check("diag no short intervals", d["short_intervals"] == 0, f'{d["short_intervals"]}')
+# ---------------------------------------------------------------- sections
 
-print("fast pulses: 400 Hz for 30 s (~50 L/min, 12000 pulses, crosses no 16-bit limit)")
-before = status()["flow"]["counter"]
-pulses(400, 30)
-time.sleep(33)
-wait_idle()
-after = status()["flow"]["counter"]
-check("counter +12000", abs((after - before) - 12000) <= 60, f"delta={after - before}")
+def security():
+    check("status without session -> 401", request("GET", "/api/status", auth=False, use_opener=False)[0] == 401)
+    check("valve without CSRF -> 403", request("POST", "/api/valve", {"state": "closed"}, auth=False)[0] == 403)
+    check("foreign Host -> 403", request("GET", "/api/status", headers={"Host": "evil.example"})[0] == 403)
+    check("foreign Origin -> 403",
+          request("POST", "/api/valve", {"state": "closed"}, headers={"Origin": "http://evil.example"})[0] == 403)
+    check("admin valve without header -> 401",
+          request("POST", "/admin/valve", {"state": "closed"}, auth=False)[0] == 401)
+    check("admin hw-status public", request("GET", "/admin/hw-status", auth=False)[0] == 200)
 
-print("16-bit accumulation: 600 Hz for 60 s (36000 pulses > 32767)")
-before = status()["flow"]["counter"]
-pulses(600, 60)
-time.sleep(63)
-wait_idle()
-after = status()["flow"]["counter"]
-e = last_event("flow")
-check("counter +36000", abs((after - before) - 36000) <= 180, f"delta={after - before}")
-check("event pulses not wrapped", e is not None and abs(e["liters"] * K - 36000) <= 180, f'liters={e and e["liters"]}')
 
-print("Tier 1: limit 60 s, continuous 50 Hz for 100 s")
-settings(tier1_limit_s=60)
-t0 = time.time()
-pulses(50, 100)
-closed_at = None
-while time.time() - t0 < 95:
+def counting():
+    print("  100 Hz for 20 s (2000 pulses)")
+    request("POST", "/api/diag", {"minutes": 2})
+    pulses(100, 20)
+    time.sleep(8)
     s = status()
-    if s["valve"]["state"] == "closed" and closed_at is None:
-        closed_at = time.time() - t0
-    time.sleep(1)
-s = status()
-check("valve closed by tier1", s["valve"]["state"] == "closed" and s["valve"]["reason"] == "tier1",
-      f'{s["valve"]["state"]} {s["valve"]["reason"]}')
-check("closed after ~60 s", closed_at is not None and 58 <= closed_at <= 64, f"{closed_at and round(closed_at)} s")
-check("alert: still flowing after close", last_event("alert") is not None)
-wait_idle()
+    check("flowing during pulses", s["flow"]["flowing"], f'lpm={s["flow"]["lpm"]}')
+    check("rate ~12.6 L/min", abs(s["flow"]["lpm"] - 100 * 60 / K) < 0.6, f'lpm={s["flow"]["lpm"]}')
+    wait_idle()
+    e = last_event("flow")
+    expected_l = 2000 / K
+    check("flow event liters", e is not None and abs(e["liters"] - expected_l) / expected_l < 0.02,
+          f'got {e and e["liters"]:.3f} expected {expected_l:.3f}')
+    check("flow event duration ~20 s", e is not None and 18 <= e["seconds"] <= 21, f'{e and e["seconds"]} s')
+    d = status()["diag"]
+    check("diag edges ~2000", abs(d["edges"] - 2000) <= 20, f'edges={d["edges"]}')
+    check("diag min interval ~10 ms", 9000 <= d["min_interval_us"] <= 10100, f'{d["min_interval_us"]} us')
+    check("diag no short intervals", d["short_intervals"] == 0, f'{d["short_intervals"]}')
 
-print("valve state survives reboot (closed)")
-reboot_and_login()
-s = status()
-check("still closed after reboot", s["valve"]["state"] == "closed" and s["valve"]["reason"] == "tier1",
-      f'{s["valve"]["state"]} {s["valve"]["reason"]}')
-check("tier1 limit persisted", s["settings"]["tier1_limit_s"] == 60)
-check("reset reason software", s["system"]["reset_reason"] == "software")
+    print("  16-bit accumulation: 1000 Hz for 36 s (36000 pulses > 32767)")
+    before = status()["flow"]["counter"]
+    pulses(1000, 36)
+    time.sleep(37)
+    wait_idle()
+    after = status()["flow"]["counter"]
+    e = last_event("flow")
+    check("counter +36000", abs((after - before) - 36000) <= 180, f"delta={after - before}")
+    check("event pulses not wrapped", e is not None and abs(e["liters"] * K - 36000) <= 180,
+          f'liters={e and e["liters"]}')
 
-print("valve state survives reboot (open)")
-valve("open")
-reboot_and_login()
-s = status()
-check("still open after reboot", s["valve"]["state"] == "open" and s["valve"]["reason"] == "user",
-      f'{s["valve"]["state"]} {s["valve"]["reason"]}')
 
-print("Tier 2: max volume 5 L, 100 Hz (5 L after ~24 s)")
-settings(tier1_limit_s=1200, max_event_liters=5)
-t0 = time.time()
-pulses(100, 45)
-closed_at = None
-while time.time() - t0 < 45:
-    if status()["valve"]["state"] == "closed" and closed_at is None:
-        closed_at = time.time() - t0
-    time.sleep(1)
-s = status()
-check("closed by tier2", s["valve"]["reason"] == "tier2", s["valve"]["detail"])
-check("closed after ~24 s", closed_at is not None and 22 <= closed_at <= 27, f"{closed_at and round(closed_at)} s")
-wait_idle()
+def tier1():
+    print(f"  limit {TIER1_S} s, 50 Hz for {TIER1_S + 20} s (the alert needs 15 s of flow after the close)")
+    settings(tier1_limit_s=TIER1_S)
+    since = time.time()
+    pulses(50, TIER1_S + 20)
+    t = wait_for(closed, TIER1_S + 8)
+    s = status()
+    check("valve closed by tier1", s["valve"]["state"] == "closed" and s["valve"]["reason"] == "tier1",
+          f'{s["valve"]["state"]} {s["valve"]["reason"]}')
+    check(f"closed after ~{TIER1_S} s", t is not None and TIER1_S - 1 <= t <= TIER1_S + 4, f"{t and round(t)} s")
+    alert = wait_for(lambda: last_event("alert", since) is not None, 25)
+    check("alert: still flowing after close", alert is not None)
 
-print("Tier 2 snooze")
-valve("open")
-request("POST", "/api/snooze", {"minutes": 5})
-pulses(100, 35)
-time.sleep(37)
-wait_idle()
-s = status()
-check("snoozed rule did not close", s["valve"]["state"] == "open", s["valve"]["reason"])
-request("POST", "/api/snooze", {"minutes": 0})
 
-print("Tier 1 limit is capped at 45 min (inside Tier 0), Tier 2 inside Tier 1")
-check("tier1_limit_s 14400 clamped to 2700", settings(tier1_limit_s=14400)["settings"]["tier1_limit_s"] == 2700)
-check("Tier 2 volume capped inside Tier 1", settings(tier1_limit_s=1200, max_event_liters=5000)["settings"]["max_event_liters"] == 180)
-check("Tier 2 cap follows a lower Tier 1", settings(tier1_limit_s=600)["settings"]["max_event_liters"] == 90)
-check("status reports tier0_limit_s", status()["flow"]["tier0_limit_s"] in (150, 3600))
-
-print("Tier 0: test build ceiling 150 s, Tier 1 at its 45 min maximum, 50 Hz for 200 s")
-valve("open")
-settings(tier1_limit_s=2700, max_event_liters=0)
-t0 = time.time()
-pulses(50, 200)
-closed_at = None
-while time.time() - t0 < 190:
-    if status()["valve"]["state"] == "closed" and closed_at is None:
-        closed_at = time.time() - t0
-    time.sleep(1)
-s = status()
-check("closed by tier0", s["valve"]["reason"] == "tier0", f'{s["valve"]["reason"]} {s["valve"]["detail"]}')
-check("closed after ~150 s", closed_at is not None and 148 <= closed_at <= 155, f"{closed_at and round(closed_at)} s")
-
-print("Tier 0: valve opened again while water still runs gets a fresh limit")
-pulses(50, 200)                          # water keeps "running" (generator ignores the valve)
-valve("open")
-t0 = time.time()
-closed_at = None
-while time.time() - t0 < 170:
-    if status()["valve"]["state"] == "closed" and closed_at is None:
-        closed_at = time.time() - t0
-    time.sleep(1)
-s = status()
-check("closed by tier0 again", s["valve"]["reason"] == "tier0", s["valve"]["reason"])
-check("again after ~150 s from the reopen", closed_at is not None and 147 <= closed_at <= 156, f"{closed_at and round(closed_at)} s")
-pulses(0, 0)
-wait_idle()
-
-print("Tier 1 without WiFi: limit 60 s, 50 Hz for 100 s, WiFi off for 90 s")
-settings(tier1_limit_s=60, max_event_liters=0)
-if status()["valve"]["state"] != "open":
+def reboot():
+    settings(tier1_limit_s=TIER1_S)
+    valve("closed")
+    reboot_and_login()
+    s = status()
+    check("still closed after reboot", s["valve"]["state"] == "closed", f'{s["valve"]["state"]} {s["valve"]["reason"]}')
+    check("tier1 limit persisted", s["settings"]["tier1_limit_s"] == TIER1_S)
+    check("reset reason software", s["system"]["reset_reason"] == "software")
     valve("open")
-pulses(50, 100)
-time.sleep(2)
-request("POST", "/admin/test/wifi-off", {"seconds": 90}, headers={"Authorization": ADMIN})
-time.sleep(100)
-for _ in range(60):
-    try:
-        if request("GET", "/api/session", auth=False)[0] == 200:
-            break
+    reboot_and_login()
+    s = status()
+    check("still open after reboot", s["valve"]["state"] == "open" and s["valve"]["reason"] == "user",
+          f'{s["valve"]["state"]} {s["valve"]["reason"]}')
+
+
+def tier2():
+    print("  max volume 2 L at 100 Hz (2 L after ~10 s)")
+    settings(tier1_limit_s=1200, max_event_liters=2)
+    pulses(100, 20)
+    t = wait_for(closed, 18)
+    s = status()
+    check("closed by tier2", s["valve"]["reason"] == "tier2", s["valve"]["detail"])
+    check("closed after ~10 s", t is not None and 8 <= t <= 13, f"{t and round(t)} s")
+    wait_idle()
+    print("  snooze: the same flow does not close")
+    valve("open")
+    request("POST", "/api/snooze", {"minutes": 5})
+    pulses(100, 15)
+    time.sleep(16)
+    wait_idle()
+    check("snoozed rule did not close", not closed(), status()["valve"]["reason"])
+
+
+def caps():
+    check("tier1_limit_s 14400 clamped to 2700", settings(tier1_limit_s=14400)["settings"]["tier1_limit_s"] == 2700)
+    check("Tier 2 volume capped inside Tier 1",
+          settings(tier1_limit_s=1200, max_event_liters=5000)["settings"]["max_event_liters"] == 180)
+    check("Tier 2 cap follows a lower Tier 1", settings(tier1_limit_s=600)["settings"]["max_event_liters"] == 90)
+    check("status reports tier0_limit_s", status()["flow"]["tier0_limit_s"] in (TIER0_S, 3600))
+
+
+def tier0():
+    print(f"  ceiling {TIER0_S} s, Tier 1 at its 45 min maximum, 50 Hz")
+    settings(tier1_limit_s=2700, max_event_liters=0)
+    pulses(50, 2 * TIER0_S + 20)
+    t = wait_for(closed, TIER0_S + 8)
+    s = status()
+    check("closed by tier0", s["valve"]["reason"] == "tier0", f'{s["valve"]["reason"]} {s["valve"]["detail"]}')
+    check(f"closed after ~{TIER0_S} s", t is not None and TIER0_S - 1 <= t <= TIER0_S + 4, f"{t and round(t)} s")
+    print("  reopened while water still runs: a fresh limit")
+    valve("open")
+    t = wait_for(closed, TIER0_S + 8)
+    s = status()
+    check("closed by tier0 again", s["valve"]["reason"] == "tier0", s["valve"]["reason"])
+    check(f"again after ~{TIER0_S} s from the reopen", t is not None and TIER0_S - 2 <= t <= TIER0_S + 4,
+          f"{t and round(t)} s")
+
+
+def wifi():
+    print(f"  limit {TIER1_S} s, 50 Hz for {TIER1_S + 10} s, WiFi off for 40 s")
+    settings(tier1_limit_s=TIER1_S, max_event_liters=0)
+    pulses(50, TIER1_S + 10)
+    try:    # the board drops WiFi at once, often before its answer is out: a timeout here is expected
+        admin("/admin/test/wifi-off", {"seconds": 40})
     except OSError:
         pass
-    time.sleep(1)
-s = status()
-check("closed by tier1 while offline", s["valve"]["state"] == "closed" and s["valve"]["reason"] == "tier1",
-      f'{s["valve"]["state"]} {s["valve"]["reason"]}')
-check("no reboot during outage", s["system"]["uptime_s"] > 100, f'uptime {s["system"]["uptime_s"]} s')
-wait_idle()
+    time.sleep(40)
+    wait_online()
+    s = status()
+    check("closed by tier1 while offline", s["valve"]["state"] == "closed" and s["valve"]["reason"] == "tier1",
+          f'{s["valve"]["state"]} {s["valve"]["reason"]}')
+    check("no reboot during outage", s["system"]["uptime_s"] > 40, f'uptime {s["system"]["uptime_s"]} s')
 
-print("Tier 1 with Tier 2 hung: Tier 2 suspended, limit 60 s, 50 Hz for 100 s")
-valve("open")
-settings(tier1_limit_s=60, max_event_liters=5)
-request("POST", "/admin/test/tier2", {"suspend": True}, headers={"Authorization": ADMIN})
-t0 = time.time()
-pulses(50, 100)
-closed_at = None
-while time.time() - t0 < 80:
-    if status()["valve"]["state"] == "closed" and closed_at is None:
-        closed_at = time.time() - t0
-    time.sleep(1)
-s = status()
-check("closed by tier1, not tier2", s["valve"]["reason"] == "tier1", s["valve"]["reason"])
-check("closed after ~60 s", closed_at is not None and 58 <= closed_at <= 64, f"{closed_at and round(closed_at)} s")
-request("POST", "/admin/test/tier2", {"suspend": False}, headers={"Authorization": ADMIN})
-pulses(0, 0)
-wait_idle()
 
-print("restore defaults")
-settings(tier1_limit_s=1200, max_event_liters=0)
-if status()["valve"]["state"] != "open":
-    valve("open")
+def hang():
+    print(f"  Tier 2 suspended (max 1 L would fire at ~10 s), limit {TIER1_S} s, 50 Hz")
+    settings(tier1_limit_s=TIER1_S, max_event_liters=1)
+    admin("/admin/test/tier2", {"suspend": True})
+    pulses(50, TIER1_S + 10)
+    t = wait_for(closed, TIER1_S + 8)
+    s = status()
+    check("closed by tier1, not tier2", s["valve"]["reason"] == "tier1", s["valve"]["reason"])
+    check(f"closed after ~{TIER1_S} s", t is not None and TIER1_S - 1 <= t <= TIER1_S + 4, f"{t and round(t)} s")
 
-print(f"\n{failures} failure(s)")
+
+def learned():
+    model_pass, device = os.environ.get("WC_MODEL_MQTT_PASS"), os.environ.get("WC_DEVICE_ID")
+    if not (model_pass and device):
+        print("  skipped: set WC_MODEL_MQTT_PASS and WC_DEVICE_ID")
+        return
+    import paho.mqtt.client as mqtt
+    topic = f"water-spare/{device}/config"
+    # A volume limit, not a duration: the shortest learned duration (60 s) is above the test build's Tier 0 (45 s)
+    print(f"  retained {topic}: 5 L at every hour; 100 Hz (5 L after ~24 s)")
+
+    def publish_config(payload):
+        c = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2, client_id="wc-hwtest")
+        c.username_pw_set("wc-model", model_pass)
+        c.connect("192.168.11.16", 1883, keepalive=30)
+        c.loop_start()
+        c.publish(topic, payload, qos=1, retain=True).wait_for_publish(10)
+        c.loop_stop()
+        c.disconnect()
+
+    cfg = {"v": 1, "generated": "2031-01-01", "model": "hwtest", "dur_s": [3600] * 168, "vol_l": [5] * 168,
+           "night_flows": 200, "exp_l": [100] * 168, "p90_l": [300] * 168}
+    publish_config(json.dumps(cfg))
+    applied = wait_for(lambda: status().get("learned", {}).get("generated") == "2031-01-01", 20)
+    check("learned config applied", applied is not None, str(status().get("learned")))
+    settings(tier1_limit_s=1200, max_event_liters=0, learned_notify=True)
+    since = time.time()
+    pulses(100, 30)
+    t = wait_for(lambda: last_event("rule", since, rule="learned_volume") is not None, 32)
+    hit = last_event("rule", since, rule="learned_volume")
+    check("learned volume notice after ~24 s", hit is not None and hit.get("limit") == 5 and not hit.get("closed")
+          and t is not None and 22 <= t <= 28, f"{t and round(t)} s {hit}")
+    check("learned limit never moves the valve", not closed(), status()["valve"]["state"])
+    wait_idle()
+    reboot_and_login()
+    publish_config("")      # a deleted retained message: the device keeps the last limits
+    time.sleep(3)
+    check("learned limits survive a reboot and a deleted config",
+          status().get("learned", {}).get("generated") == "2031-01-01", str(status().get("learned")))
+
+
+SECTIONS = {"security": security, "counting": counting, "tier1": tier1, "reboot": reboot, "tier2": tier2,
+            "caps": caps, "tier0": tier0, "wifi": wifi, "hang": hang, "learned": learned}
+
+if args.list:
+    print(" ".join(SECTIONS))
+    sys.exit(0)
+PASSWORD, ADMIN = os.environ["WC_PASSWORD"], os.environ["WC_ADMIN"]
+chosen = args.only.split(",") if args.only else list(SECTIONS)
+unknown = [s for s in chosen if s not in SECTIONS]
+if unknown:
+    sys.exit(f"unknown section(s): {unknown}; see --list")
+
+t_start = time.time()
+login()
+restore()
+for name in chosen:
+    print(f"{name}")
+    try:
+        SECTIONS[name]()
+    except Exception as e:      # a broken section must not leave the valve shut or a setting changed
+        check(f"{name} ran to the end", False, repr(e))
+    finally:
+        try:
+            restore()
+        except Exception as e:
+            check("restore after the section", False, repr(e))
+
+print(f"\n{failures} failure(s) in {round(time.time() - t_start)} s")
 sys.exit(1 if failures else 0)

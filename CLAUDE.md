@@ -81,6 +81,13 @@ cmake -S firmware/test -B build-test && cmake --build build-test && ctest --test
 
 1. `cp firmware/main/config/credentials-example.h firmware/main/config/credentials.h`, then fill in WiFi, the admin
    header, the web password (`home-idf/tools/hash_password.py`), ntfy topics and the MQTT password.
+   - ntfy topics (owner decision 2026-09-30), by what the owner has to do:
+     - `NTFY_ERROR_TOPIC` (loud): technical errors from the log and **protection alarms** (valve shut off by Tier 0/1/2,
+       water flowing after a close; `hi_notify_alarm_ex`). Network noise (MQTT/OTA/HTTP client tags) is filtered out
+       in `main.c`, and shut-offs are logged as warnings so they do not arrive twice.
+     - `NTFY_WARNING_TOPIC`: Tier 2 notices (learned limits, dripping leak); hc-data `score.py` posts here too
+       (`NTFY_URL` in `server/secrets.env`). Empty: they go to `NTFY_TOPIC`.
+     - `NTFY_TOPIC` (quiet): water on, a shut-off by the owner, start.
    - Secrets are stored obfuscated (`home-idf/tools/obfuscate.py` → `"obf1:..."`, `--reveal` to read back); that is
      not encryption. Scripts that need a value (e.g. the admin header for `tools/hw_test.py`) reveal it the same way.
 2. `firmware/certs/ota_server_cert_15.pem` (gitignored): trust anchor of the OTA server on 192.168.11.15.
@@ -143,6 +150,7 @@ The broker is `mqtt://192.168.11.16:1883`, user `water-controller`, QoS 1. Topic
 | `water/<mac>/rule` | Tier 2 triggers |
 | `water/<mac>/alert` | alerts |
 | `water/<mac>/status` | retained `online` / `offline` (LWT) |
+| `water-spare/<mac>/...` | spare-board builds (`WATER_SPARE`): same topics in their own namespace, which wc-ingest and the Apple Home bridge (`../homebridge_plugins`, reads `water/+/state`; a protection shut-off there is a critical "Water leak") ignore |
 | `water/<mac>/config` | **subscribed**, retained, published by hc-data `wc-model` (`server/model/publish.py`): learned limits, 168 values per array (Mon 00:00 first), clamped by `learned.c`; a deleted message keeps the last limits |
 
 ### UI work
@@ -243,7 +251,8 @@ tools/dev_proxy.py <device-ip> --port 8765   # serves firmware/web/app.html rend
   `thresholds.json` copied to hc-data). Thresholds: per-hour maximum of normal flows ±1 h × one shared margin tuned on
   validation (x1.5), floors 3 min / 20 L; the device caps the duration limit at 3/4 of the Tier 1 limit. Replaced
   boosted quantiles × a margin per band after the owner saw 39 min / 1277 L for Monday 19:00. Still to do:
-  - spare board test of 3.4.0 with a hand-published config, then production OTA (owner OK);
+  - spare board test of 3.4.0 passed 2026-09-30 (`tools/hw_test.py`, all sections incl. `learned`; it found and
+    fixed a missed reopen in the flow task, see docs/TESTING.md); production OTA waits for the owner's OK;
   - `NTFY_URL` in `server/secrets.env` for the hourly check (empty: alarms only in `model_alert`);
   - label the `unlabelled` rows in the private `server/model/known_events.csv` (pool / hose).
   - `learned_notify` lives in NVS `wc_learned`, not in `settings_t` (its blob has a fixed size: a new field would

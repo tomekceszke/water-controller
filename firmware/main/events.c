@@ -72,6 +72,11 @@ static void update_totals(const event_t *e, bool small)
     portEXIT_CRITICAL(&s_mux);
 }
 
+/* Three ntfy topics by what the owner has to do (owner decision 2026-09-30):
+ *   error   (loud)  the device acted to protect or failed at it: shut-off by Tier 0/1/2, water flowing after a close;
+ *                   plus technical errors from the log (hi_log -> hi_notify_error, see main.c)
+ *   warning         Tier 2 notices to look at when convenient: learned limits, dripping leak
+ *   info    (quiet) everything else: water on, a shut-off by the owner, start */
 static void notify(const event_t *e)
 {
     char title[48];
@@ -83,8 +88,13 @@ static void notify(const event_t *e)
                 snprintf(title, sizeof(title), "Water shut off");
                 snprintf(msg, sizeof(msg), "Valve closed by %s%s%s", valve_reason_name((valve_reason_t) e->reason),
                          e->detail[0] ? ": " : "", e->detail);
-                hi_notify_event_ex(title, msg, e->reason == VALVE_BY_USER ? HI_NOTIFY_PRIO_DEFAULT
-                                                                          : HI_NOTIFY_PRIO_URGENT, "droplet,no_entry");
+                const bool protection = e->reason == VALVE_BY_TIER0 || e->reason == VALVE_BY_TIER1
+                                        || e->reason == VALVE_BY_TIER2;
+                if (protection) {
+                    hi_notify_alarm_ex(title, msg, HI_NOTIFY_PRIO_URGENT, "droplet,no_entry");
+                } else {
+                    hi_notify_event_ex(title, msg, HI_NOTIFY_PRIO_DEFAULT, "droplet,no_entry");
+                }
             } else {
                 snprintf(msg, sizeof(msg), "Valve opened by %s", valve_reason_name((valve_reason_t) e->reason));
                 hi_notify_event_ex("Water on", msg, HI_NOTIFY_PRIO_LOW, "droplet");
@@ -102,16 +112,16 @@ static void notify(const event_t *e)
                     snprintf(msg, sizeof(msg), "%lu L in one flow (started %02d:00), usually under %lu L",
                              (unsigned long) e->value, e->hour, (unsigned long) e->limit);
                 }
-                hi_notify_event_ex("Unusual water use", msg, HI_NOTIFY_PRIO_DEFAULT, "droplet,mag");
+                hi_notify_warning_ex("Unusual water use", msg, HI_NOTIFY_PRIO_DEFAULT, "droplet,mag");
             } else if (!e->closed) {
                 settings_get(&s);
                 snprintf(msg, sizeof(msg), "Water has been running continuously for %lu min (%s)",
                          (unsigned long) s.leak_notify_min, rules_name((rule_t) e->reason));
-                hi_notify_event_ex("Possible leak", msg, HI_NOTIFY_PRIO_HIGH, "droplet,warning");
+                hi_notify_warning_ex("Possible leak", msg, HI_NOTIFY_PRIO_HIGH, "droplet,warning");
             }
             break;
         case EV_ALERT:
-            hi_notify_event_ex("Water still flowing", e->detail, HI_NOTIFY_PRIO_URGENT, "rotating_light");
+            hi_notify_alarm_ex("Water still flowing", e->detail, HI_NOTIFY_PRIO_URGENT, "rotating_light");
             break;
         default:
             break;

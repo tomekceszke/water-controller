@@ -21,7 +21,11 @@
 
 /* TIER 1 (defaults and hard bounds; the limit is set from the app) */
 #define TIER1_LIMIT_DEFAULT_S           1200
+#ifdef WATER_TEST_PULSES
+#define TIER1_LIMIT_MIN_S               20      // test builds only: hardware tests of Tier 1 in seconds, not minutes
+#else
 #define TIER1_LIMIT_MIN_S               60
+#endif
 #define TIER1_LIMIT_MAX_S               2700    // strictly inside Tier 0 (tier0.h, hard-coded 60 min)
 #define TIER1_GAP_MS                    2000    // a pause longer than this ends a continuous flow
 #define VALVE_CLOSING_S                 15      // flow after a close for longer than this = valve failure alert
@@ -45,7 +49,13 @@
 
 /* TELEMETRY (hc-data; failures never affect protection) */
 #define MQTT_BROKER_URI                 "mqtt://192.168.11.16:1883"
+#ifdef WATER_SPARE
+// Spare board: its own namespace, so test shut-offs reach neither the history (wc-ingest reads water/#) nor
+// Apple Home (the bridge maps water/+/state; a protection shut-off there is a critical "Water leak" alert)
+#define MQTT_TOPIC_PREFIX               "water-spare"
+#else
 #define MQTT_TOPIC_PREFIX               "water"
+#endif
 #define TELEMETRY_MQTT_USER             "water-controller"
 #define MQTT_OUTBOX_LIMIT_BYTES         32768
 #define TELEMETRY_QUEUE_LEN             64

@@ -27,7 +27,8 @@ endif()
 
 # Spare-board hardware tests only: idf.py -B build-testhw -DWATER_TEST_PULSES=1 build (never ship)
 if(WATER_TEST_PULSES)
-    target_compile_definitions(${COMPONENT_LIB} PRIVATE WATER_TEST_PULSES=1 WATER_TEST_TIER0_S=150)
+    # Clock-bound limits shortened, order kept (Tier 1 from 20 s < Tier 0 at 45 s), so tools/hw_test.py runs quickly
+    target_compile_definitions(${COMPONENT_LIB} PRIVATE WATER_TEST_PULSES=1 WATER_TEST_TIER0_S=45)
     if(WATER_TEST_SALT_HEX AND WATER_TEST_HASH_HEX)
         target_compile_definitions(${COMPONENT_LIB} PRIVATE WATER_TEST_SALT_HEX="${WATER_TEST_SALT_HEX}"
                                                             WATER_TEST_HASH_HEX="${WATER_TEST_HASH_HEX}")

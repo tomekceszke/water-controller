@@ -27,6 +27,10 @@ void valve_set(valve_state_t state, valve_reason_t reason, const char *detail);
 
 valve_state_t valve_get(void);
 
+/* Counts every transition to open. The flow task compares it between samples, so a reopen right after a close
+ * (both inside one 1 s sample) is still seen: sampling the state alone missed it and left the flow without a limit. */
+uint32_t valve_open_count(void);
+
 typedef struct {
     valve_state_t state;
     valve_reason_t reason;

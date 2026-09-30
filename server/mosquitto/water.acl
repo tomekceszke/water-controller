@@ -8,10 +8,14 @@ topic write water/+/alert
 topic write water/+/state
 topic readwrite water/+/status
 topic read water/+/config
+# the spare board (WATER_SPARE builds) publishes under water-spare/, which nothing ingests or bridges
+topic write water-spare/#
+topic read water-spare/+/config
 
 user wc-ingest
 topic read water/#
 
-# Learned limits from the usage model (server/model/publish.py), retained
+# Learned limits from the usage model (server/model/publish.py), retained; water-spare for hardware tests
 user wc-model
 topic write water/+/config
+topic write water-spare/+/config

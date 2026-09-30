@@ -76,7 +76,7 @@ and copies `thresholds.json` to `/var/lib/wc-model/out/`. The server keeps only 
 
 | Unit | When | What |
 |---|---|---|
-| `wc-model-score.timer` | hourly at :05 | `score.py`: liters per hour against the learned hour limit (holidays included); `model_alert` + ntfy (`NTFY_URL`) |
+| `wc-model-score.timer` | hourly at :05 | `score.py`: liters per hour against the learned hour limit (holidays included); `model_alert` + ntfy (`NTFY_URL` = the device's warning topic) |
 
 Retraining (every few months, from the repository root):
 

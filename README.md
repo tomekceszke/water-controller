@@ -45,7 +45,8 @@ rebuilds it around one rule: **the shut-off must work even when everything else 
   - live flow and a countdown to shut-off;
   - slide to shut the water off or turn it back on;
   - history, settings, pulse-signal diagnostics.
-- **Push notifications** ([ntfy](https://ntfy.sh)) for shut-offs, leaks and a valve that does not close.
+- **Push notifications** ([ntfy](https://ntfy.sh)) on three topics: alarms and errors (a shut-off by the protection, a
+  valve that does not close), warnings (unusual use, a dripping leak) and quiet information.
 - **History and analytics** on a home server (MQTT → PostgreSQL), including six years imported from Google BigQuery.
 - **Safe over-the-air updates** with automatic rollback. A one-shot migrator moved the sealed production board to a new bootloader
   and partition table without opening the box, after a rehearsal on a spare board ([docs/IDF5_MIGRATION.md](docs/IDF5_MIGRATION.md)).

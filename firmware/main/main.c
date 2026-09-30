@@ -1,3 +1,4 @@
+#include <string.h>
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "esp_app_desc.h"
@@ -28,12 +29,17 @@ static const char *TAG = "MAIN";
 
 extern const char ota_cert_pem_start[] asm("_binary_ota_server_cert_15_pem_start");
 
+#ifndef NTFY_WARNING_TOPIC     // credentials.h from before 3.4: warnings then go to NTFY_TOPIC
+#define NTFY_WARNING_TOPIC ""
+#endif
+
 /* credentials.h values may be obfuscated ("obf1:...", home-idf tools/obfuscate.py) */
 static char s_wifi_pass[65];
 static char s_admin_header[128];
 static char s_readonly_header[128];
 static char s_ntfy_topic[65];
 static char s_ntfy_error_topic[65];
+static char s_ntfy_warning_topic[65];
 static char s_mqtt_pass[65];
 
 static void reveal_credentials(void)
@@ -47,9 +53,27 @@ static void reveal_credentials(void)
 #ifndef WATER_SPARE
               & hi_secret_reveal(NTFY_TOPIC, s_ntfy_topic, sizeof(s_ntfy_topic))
               & hi_secret_reveal(NTFY_ERROR_TOPIC, s_ntfy_error_topic, sizeof(s_ntfy_error_topic))
+              & hi_secret_reveal(NTFY_WARNING_TOPIC, s_ntfy_warning_topic, sizeof(s_ntfy_warning_topic))
 #endif
               & hi_secret_reveal(MQTT_PASS, s_mqtt_pass, sizeof(s_mqtt_pass));
     if (!ok) ESP_LOGE(TAG, "A credential in credentials.h is malformed");
+}
+
+/* The error topic is loud, so network noise stays off it: connection failures of MQTT, OTA or HTTP clients are
+ * expected (broker restart, OTA server started on demand) and each subsystem retries on its own. */
+static void forward_error_line(const char *line)
+{
+    static const char *const quiet[] = {"esp-tls", "transport_base", "mqtt_client", "HI_MQTT", "HTTP_CLIENT",
+                                        "esp_https_ota", "HI_OTA", "HI_NOTIFY"};
+    const char *tag = strchr(line, ')');
+    if (tag && tag[1] == ' ') {
+        tag += 2;
+        for (size_t i = 0; i < sizeof(quiet) / sizeof(quiet[0]); i++) {
+            size_t n = strlen(quiet[i]);
+            if (strncmp(tag, quiet[i], n) == 0 && tag[n] == ':') return;
+        }
+    }
+    hi_notify_error(line);
 }
 
 static bool healthy(void)
@@ -83,7 +107,7 @@ void app_main(void)
 #endif
 
     /* ---- everything else is optional ---- */
-    hi_log_init(&(hi_log_config_t) {.udp_ip = LOG_UDP_IP, .udp_port = LOG_UDP_PORT, .on_error_line = hi_notify_error});
+    hi_log_init(&(hi_log_config_t) {.udp_ip = LOG_UDP_IP, .udp_port = LOG_UDP_PORT, .on_error_line = forward_error_line});
     ESP_LOGW(TAG, "(not error) water-controller %s, reset: %s", esp_app_get_description()->version, hi_reset_reason());
     if (nvs_erased) ESP_LOGE(TAG, "NVS was erased: valve state and settings reset to defaults");
 
@@ -92,6 +116,7 @@ void app_main(void)
     hi_wifi_start(&(hi_wifi_config_t) {.ssid = WIFI_SSID, .password = s_wifi_pass, .hostname = DEVICE_HOSTNAME});
     hi_notify_init(&(hi_notify_config_t) {
         .topic = s_ntfy_topic,
+        .warning_topic = s_ntfy_warning_topic,
         .error_topic = s_ntfy_error_topic,
         .error_title = "Water controller error",
         .click_url = APP_URL,

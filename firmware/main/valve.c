@@ -114,6 +114,8 @@ static void persist(const valve_info_t *info)
     }
 }
 
+static volatile uint32_t s_open_count;     // transitions to open since boot
+
 void valve_set(valve_state_t state, valve_reason_t reason, const char *detail)
 {
     int64_t now_ms = esp_timer_get_time() / 1000;
@@ -132,6 +134,7 @@ void valve_set(valve_state_t state, valve_reason_t reason, const char *detail)
         gpio_set_level(GPIO_VALVE, level_for(state));       // the physical action comes first
         gpio_set_level(GPIO_LED_CLOSED, state == VALVE_CLOSED);
         s_info = next;
+        if (state == VALVE_OPEN) s_open_count++;
     }
     info = s_info;
     portEXIT_CRITICAL(&s_mux);
@@ -149,6 +152,11 @@ void valve_set(valve_state_t state, valve_reason_t reason, const char *detail)
     };
     snprintf(e.detail, sizeof(e.detail), "%s", info.detail);
     events_publish(&e);
+}
+
+uint32_t valve_open_count(void)
+{
+    return s_open_count;
 }
 
 valve_state_t valve_get(void)
