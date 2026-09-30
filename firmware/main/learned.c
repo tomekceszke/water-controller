@@ -133,3 +133,9 @@ learned_decision_t learned_update(learned_state_t *st, const learned_config_t *c
     }
     return d;
 }
+
+bool learned_closes(learned_hit_t hit, int hour, bool close_night)
+{
+    return close_night && (hit == LEARNED_DURATION || hit == LEARNED_VOLUME)
+           && hour >= LEARNED_CLOSE_START_H && hour < LEARNED_NIGHT_END_H;
+}

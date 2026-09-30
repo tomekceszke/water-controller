@@ -4,6 +4,7 @@
  * so PCNT, Tier 1 and Tier 2 can be exercised without water. hz 0 stops.
  * POST /admin/test/wifi-off {"seconds": n} stops WiFi for n seconds (Tier 1 must keep working offline).
  * POST /admin/test/tier2 {"suspend": bool} suspends the Tier 2 task (Tier 1 must not care).
+ * POST /admin/test/hour {"hour": n} makes Tier 2/3 see local hour n (Tier 3 night shut-off); -1 back to the clock.
  */
 #include "testhw.h"
 
@@ -68,6 +69,20 @@ static esp_err_t tier2_handler(httpd_req_t *req)
     return hi_httpd_send_json(req, "200 OK", cJSON_CreateObject());
 }
 
+static esp_err_t hour_handler(httpd_req_t *req)
+{
+    esp_err_t result;
+    if (!admin_ok(req, &result)) return result;
+    cJSON *body = hi_httpd_read_json(req, &result);
+    if (body == NULL) return result;
+    const cJSON *hour = cJSON_GetObjectItemCaseSensitive(body, "hour");
+    const int h = cJSON_IsNumber(hour) ? (int) hour->valuedouble : -1;
+    cJSON_Delete(body);
+    protect_test_hour(h);
+    ESP_LOGW(TAG, "Test: local hour %d", h);
+    return hi_httpd_send_json(req, "200 OK", cJSON_CreateObject());
+}
+
 static void stop_pulses(void *arg)
 {
     ledc_stop(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_0, 0);
@@ -119,6 +134,7 @@ void testhw_start(void)
     hi_httpd_register(&(httpd_uri_t) {.uri = "/admin/test/pulses", .method = HTTP_POST, .handler = pulses_handler});
     hi_httpd_register(&(httpd_uri_t) {.uri = "/admin/test/wifi-off", .method = HTTP_POST, .handler = wifi_off_handler});
     hi_httpd_register(&(httpd_uri_t) {.uri = "/admin/test/tier2", .method = HTTP_POST, .handler = tier2_handler});
+    hi_httpd_register(&(httpd_uri_t) {.uri = "/admin/test/hour", .method = HTTP_POST, .handler = hour_handler});
     ESP_LOGE(TAG, "TEST BUILD: pulse generator enabled on the flow meter pin");
 }
 #else

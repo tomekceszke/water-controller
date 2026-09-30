@@ -28,7 +28,7 @@ typedef struct {
 
 typedef struct {
     uint64_t pulses_since_boot;
-    uint64_t pulses_today;      // local day, counted from boot until the clock is synced
+    uint64_t pulses_today;      // local day; survives restarts (RTC), counts pre-sync flows into the first synced day
     uint32_t flows_since_boot;
     uint32_t small_flows_today;     // below FLOW_EVENT_MIN_ML: not listed, not sent as flow events
     uint32_t small_flows_since_boot;

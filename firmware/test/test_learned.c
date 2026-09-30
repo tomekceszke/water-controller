@@ -225,6 +225,25 @@ static void nothing_without_clock_or_config(void)
     CHECK_EQ(flow(&s, NULL, &t, 600, 12, MON, 3, 0).hit, LEARNED_NONE);
 }
 
+static void closes_only_at_night_when_enabled(void)
+{
+    // Duration and volume limits of flows starting 1:00-5:59 close with the option on
+    CHECK(learned_closes(LEARNED_DURATION, 1, true));
+    CHECK(learned_closes(LEARNED_VOLUME, 5, true));
+    // Midnight carries the evening, 6:00 is morning: notify only
+    CHECK(!learned_closes(LEARNED_DURATION, 0, true));
+    CHECK(!learned_closes(LEARNED_VOLUME, 6, true));
+    CHECK(!learned_closes(LEARNED_VOLUME, 19, true));
+    // The night flow count only notifies, whatever the hour
+    CHECK(!learned_closes(LEARNED_NIGHT_FLOWS, 3, true));
+    CHECK(!learned_closes(LEARNED_NONE, 3, true));
+    // Option off: nothing closes
+    CHECK(!learned_closes(LEARNED_DURATION, 3, false));
+    CHECK(!learned_closes(LEARNED_VOLUME, 3, false));
+    // Unknown hour (clock not synced): never
+    CHECK(!learned_closes(LEARNED_DURATION, -1, true));
+}
+
 int main(void)
 {
     RUN(parse_reads_and_clamps);
@@ -238,5 +257,6 @@ int main(void)
     RUN(duration_limit_stays_below_tier1);
     RUN(volume_limit_stays_below_tier1);
     RUN(nothing_without_clock_or_config);
+    RUN(closes_only_at_night_when_enabled);
     return report();
 }

@@ -1,9 +1,11 @@
+#include <stddef.h>
 #include <stdio.h>
 #include <string.h>
 #include <time.h>
 #include "freertos/FreeRTOS.h"
 #include "freertos/queue.h"
 #include "freertos/task.h"
+#include "esp_attr.h"
 #include "esp_log.h"
 #include "esp_timer.h"
 #include "nvs.h"
@@ -14,6 +16,7 @@
 #include "events.h"
 #include "learned.h"
 #include "protect.h"
+#include "rtc_keep.h"
 #include "rules.h"
 #include "settings.h"
 #include "valve.h"
@@ -38,8 +41,16 @@ static volatile bool s_rx_pending;
 static learned_config_t s_learned;
 static learned_state_t s_learned_state;
 static bool s_learned_notify = true;
-static uint32_t s_hour_pulses[24];      // today, per local hour
-static int s_hour_yday = -1;
+static bool s_learned_close_night;    // owner option, off by default
+/* Today's pulses per local hour (History chart), kept across restarts (rtc_keep.h); updated under s_mux */
+#define HOURS_MAGIC 0x57480001u
+typedef struct {
+    uint32_t magic;
+    int32_t day;                        // rtc_keep_day(), -1 = not known yet
+    uint32_t pulses[24];
+    uint32_t sum;
+} hours_t;
+static RTC_NOINIT_ATTR hours_t s_hours;
 static int s_now_how = -1;              // local hour of week, for the status
 
 static void rules_config_from(const settings_t *s, rules_config_t *c)
@@ -58,7 +69,21 @@ static void rules_config_from(const settings_t *s, rules_config_t *c)
     };
 }
 
-/* Local time for the rules; all -1 while the clock is not synced. */
+#ifdef WATER_TEST_PULSES
+static volatile int s_test_hour = -1;
+
+void protect_test_hour(int hour)
+{
+    s_test_hour = hour >= 0 && hour < 24 ? hour : -1;
+}
+#endif
+
+static void hours_seal(void)
+{
+    s_hours.sum = rtc_keep_sum(&s_hours, offsetof(hours_t, sum));
+}
+
+/* Local time for the rules; all -1 while the clock is not synced. `day` is rtc_keep_day(). */
 static void local_time(int *dow, int *hour, int *yday)
 {
     *dow = *hour = *yday = -1;
@@ -68,7 +93,10 @@ static void local_time(int *dow, int *hour, int *yday)
     localtime_r(&now, &t);
     *dow = (t.tm_wday + 6) % 7;         // Monday = 0
     *hour = t.tm_hour;
-    *yday = t.tm_yday;
+#ifdef WATER_TEST_PULSES
+    if (s_test_hour >= 0) *hour = s_test_hour;
+#endif
+    *yday = rtc_keep_day(&t);
 }
 
 static void learned_load(void)
@@ -87,6 +115,8 @@ static void learned_load(void)
     }
     uint8_t notify;
     if (nvs_get_u8(h, "notify", &notify) == ESP_OK) s_learned_notify = notify != 0;
+    uint8_t close_night;
+    if (nvs_get_u8(h, "close_night", &close_night) == ESP_OK) s_learned_close_night = close_night != 0;
     nvs_close(h);
 }
 
@@ -124,14 +154,13 @@ static void learned_apply_pending(void)
 static void learned_step(const protect_sample_t *sample, const settings_t *s, int dow, int hour, int yday,
                          bool snoozed)
 {
-    if (yday >= 0 && yday != s_hour_yday) {
-        portENTER_CRITICAL(&s_mux);
-        memset(s_hour_pulses, 0, sizeof(s_hour_pulses));
-        s_hour_yday = yday;
-        portEXIT_CRITICAL(&s_mux);
-    }
     portENTER_CRITICAL(&s_mux);
-    if (hour >= 0) s_hour_pulses[hour] += sample->pulses;
+    if (yday >= 0 && yday != s_hours.day) {
+        memset(s_hours.pulses, 0, sizeof(s_hours.pulses));
+        s_hours.day = yday;
+    }
+    if (hour >= 0) s_hours.pulses[hour] += sample->pulses;
+    hours_seal();
     s_now_how = learned_how(dow, hour);
     portEXIT_CRITICAL(&s_mux);
 
@@ -147,15 +176,28 @@ static void learned_step(const protect_sample_t *sample, const settings_t *s, in
 
     const rule_t rule = d.hit == LEARNED_DURATION ? RULE_LEARNED_DURATION
                       : d.hit == LEARNED_VOLUME ? RULE_LEARNED_VOLUME : RULE_NIGHT_FLOWS;
+    // Tier 3 closes only with the owner's night option, for flows that started 1:00-5:59 (learned_closes)
+    const bool close = learned_closes(d.hit, d.hour, s_learned_close_night) && valve_get() == VALVE_OPEN;
     s_last_rule = rule;
     s_last_rule_ms = sample->now_ms;
-    s_last_rule_closed = false;
+    s_last_rule_closed = close;
     event_t e = {
-        .type = EV_RULE, .mono_ms = sample->now_ms, .reason = (uint8_t) rule, .closed = false,
+        .type = EV_RULE, .mono_ms = sample->now_ms, .reason = (uint8_t) rule, .closed = close,
         .pulses = (uint32_t) s_learned_state.pulses, .hour = d.hour, .value = d.value, .limit = d.limit,
     };
     snprintf(e.detail, sizeof(e.detail), "%lu > %lu", (unsigned long) d.value, (unsigned long) d.limit);
-    ESP_LOGW(TAG, "(not error) Learned limit %s: %s", rules_name(rule), e.detail);
+    if (close) {
+        char detail[24];
+        if (d.hit == LEARNED_DURATION) {
+            snprintf(detail, sizeof(detail), "%s %lu min", rules_name(rule), (unsigned long) (d.value / 60));
+        } else {
+            snprintf(detail, sizeof(detail), "%s %lu L", rules_name(rule), (unsigned long) d.value);
+        }
+        ESP_LOGW(TAG, "(not error) Learned limit %s at night: closing the valve (%s)", rules_name(rule), e.detail);
+        valve_set(VALVE_CLOSED, VALVE_BY_TIER3, detail);
+    } else {
+        ESP_LOGW(TAG, "(not error) Learned limit %s: %s", rules_name(rule), e.detail);
+    }
     events_publish(&e);
 }
 
@@ -218,6 +260,14 @@ void protect_start(void)
     rules_init(&s_rules);
     learned_init(&s_learned_state);
     learned_load();
+    if (s_hours.magic != HOURS_MAGIC || s_hours.sum != rtc_keep_sum(&s_hours, offsetof(hours_t, sum))) {
+        memset(&s_hours, 0, sizeof(s_hours));
+        s_hours.magic = HOURS_MAGIC;
+        s_hours.day = -1;
+        hours_seal();
+    } else {
+        ESP_LOGI(TAG, "Today's hourly counters kept across the restart");
+    }
     s_queue = xQueueCreate(PROTECT_QUEUE_LEN, sizeof(protect_sample_t));
     if (s_queue == NULL
         || xTaskCreate(protect_task, "tier2", 4096, NULL, PROTECT_TASK_PRIORITY, &s_task) != pdPASS) {
@@ -270,6 +320,12 @@ void protect_learned_set_notify(bool on)
     learned_store("notify", NULL, 0, on ? 1 : 0);
 }
 
+void protect_learned_set_close_night(bool on)
+{
+    s_learned_close_night = on;
+    learned_store("close_night", NULL, 0, on ? 1 : 0);
+}
+
 void protect_learned_status(protect_learned_t *out)
 {
     memset(out, 0, sizeof(*out));
@@ -277,6 +333,7 @@ void protect_learned_status(protect_learned_t *out)
     out->active = s_learned.valid;
     memcpy(out->generated, s_learned.generated, sizeof(out->generated));
     out->notify = s_learned_notify;
+    out->close_night = s_learned_close_night;
     // The current flow is judged by the hour it started in; without a flow, the hour now
     const int how = s_learned_state.flowing && s_learned_state.how >= 0 ? s_learned_state.how : s_now_how;
     if (s_learned.valid && how >= 0) {
@@ -296,7 +353,7 @@ void protect_learned_status(protect_learned_t *out)
     }
     out->flowing = s_learned_state.flowing;
     out->night_limit = s_learned.valid ? s_learned.night_flows : 0;
-    out->night_flows = s_learned_state.night_yday == s_hour_yday ? s_learned_state.night_flows : 0;
+    out->night_flows = s_learned_state.night_yday == s_hours.day ? s_learned_state.night_flows : 0;
     portEXIT_CRITICAL(&s_mux);
 }
 
@@ -311,7 +368,7 @@ bool protect_learned_today(protect_learned_day_t *out, uint32_t pulses_per_liter
         for (int h = 0; h < 24; h++) {
             out->exp_l_x10[h] = s_learned.exp_l_x10[base + h];
             out->p90_l_x10[h] = s_learned.p90_l_x10[base + h];
-            out->used_l_x10[h] = pulses_per_liter ? (uint32_t) ((uint64_t) s_hour_pulses[h] * 10 / pulses_per_liter) : 0;
+            out->used_l_x10[h] = pulses_per_liter ? (uint32_t) ((uint64_t) s_hours.pulses[h] * 10 / pulses_per_liter) : 0;
         }
     }
     portEXIT_CRITICAL(&s_mux);

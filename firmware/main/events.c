@@ -1,7 +1,9 @@
+#include <stddef.h>
 #include <stdio.h>
 #include <string.h>
 #include <time.h>
 #include "freertos/FreeRTOS.h"
+#include "esp_attr.h"
 #include "esp_timer.h"
 
 #include "hi_notify.h"
@@ -9,6 +11,7 @@
 
 #include "config/config.h"
 #include "events.h"
+#include "rtc_keep.h"
 #include "rules.h"
 #include "settings.h"
 #include "telemetry.h"
@@ -19,13 +22,37 @@ static event_t s_ring[EVENTS_RING_SIZE];
 static size_t s_head;       // next write position
 static size_t s_count;
 static events_totals_t s_totals;
-static int s_today_yday = -1;
+
+/* Today's totals, kept across restarts (rtc_keep.h); updated under s_mux */
+#define TODAY_MAGIC 0x57540001u
+typedef struct {
+    uint32_t magic;
+    int32_t day;                // rtc_keep_day(), -1 = not known yet
+    uint64_t pulses;
+    uint32_t small_flows;
+    uint32_t sum;
+} today_t;
+static RTC_NOINIT_ATTR today_t s_today;
+
+static void today_seal(void)
+{
+    s_today.sum = rtc_keep_sum(&s_today, offsetof(today_t, sum));
+}
 
 void events_init(void)
 {
     s_head = 0;
     s_count = 0;
     memset(&s_totals, 0, sizeof(s_totals));
+    if (s_today.magic == TODAY_MAGIC && s_today.sum == rtc_keep_sum(&s_today, offsetof(today_t, sum))) {
+        s_totals.pulses_today = s_today.pulses;
+        s_totals.small_flows_today = s_today.small_flows;
+    } else {
+        memset(&s_today, 0, sizeof(s_today));
+        s_today.magic = TODAY_MAGIC;
+        s_today.day = -1;
+        today_seal();
+    }
 }
 
 int64_t events_unix_time(int64_t mono_ms)
@@ -46,20 +73,20 @@ static bool is_small_flow(const event_t *e)
 static void update_totals(const event_t *e, bool small)
 {
     if (e->type != EV_FLOW_END) return;
-    int yday = -1;
+    int32_t day = -1;
     if (hi_ntp_synced()) {
         time_t now = time(NULL);
         struct tm t;
         localtime_r(&now, &t);
-        yday = t.tm_yday;
+        day = rtc_keep_day(&t);
     }
     portENTER_CRITICAL(&s_mux);
-    if (yday >= 0 && yday != s_today_yday) {
-        if (s_today_yday >= 0) {    // keep pre-sync flows in the first synced day
+    if (day >= 0 && day != s_today.day) {
+        if (s_today.day >= 0) {     // keep pre-sync flows in the first synced day
             s_totals.pulses_today = 0;
             s_totals.small_flows_today = 0;
         }
-        s_today_yday = yday;
+        s_today.day = day;
     }
     s_totals.pulses_since_boot += e->pulses;
     s_totals.pulses_today += e->pulses;
@@ -69,6 +96,9 @@ static void update_totals(const event_t *e, bool small)
     } else {
         s_totals.flows_since_boot++;
     }
+    s_today.pulses = s_totals.pulses_today;
+    s_today.small_flows = s_totals.small_flows_today;
+    today_seal();
     portEXIT_CRITICAL(&s_mux);
 }
 
@@ -89,7 +119,7 @@ static void notify(const event_t *e)
                 snprintf(msg, sizeof(msg), "Valve closed by %s%s%s", valve_reason_name((valve_reason_t) e->reason),
                          e->detail[0] ? ": " : "", e->detail);
                 const bool protection = e->reason == VALVE_BY_TIER0 || e->reason == VALVE_BY_TIER1
-                                        || e->reason == VALVE_BY_TIER2;
+                                        || e->reason == VALVE_BY_TIER2 || e->reason == VALVE_BY_TIER3;
                 if (protection) {
                     hi_notify_alarm_ex(title, msg, HI_NOTIFY_PRIO_URGENT, "droplet,no_entry");
                 } else {
@@ -101,7 +131,7 @@ static void notify(const event_t *e)
             }
             break;
         case EV_RULE:
-            if (e->limit) {     // learned limits (notification only)
+            if (e->limit && !e->closed) {   // learned limits; a night close arrives as the valve alarm instead
                 if (e->reason == RULE_NIGHT_FLOWS) {
                     snprintf(msg, sizeof(msg), "%lu separate flows tonight, usually at most %lu: check the cisterns",
                              (unsigned long) e->value, (unsigned long) e->limit);

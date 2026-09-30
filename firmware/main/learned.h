@@ -2,8 +2,9 @@
 
 /*
  * Tier 3: limits learned on hc-data (server/model), delivered as the retained MQTT water/<mac>/config.
- * Pure logic (no ESP-IDF), unit-tested on the host. Notification only: it never requests a close, and without a
- * valid config it does nothing, so the device behaves exactly as before.
+ * Pure logic (no ESP-IDF), unit-tested on the host. It notifies; only with the owner's night option does it request a
+ * close, and only for flows starting 1:00-5:59 (learned_closes). Without a valid config it does nothing, so the device
+ * behaves exactly as before.
  *
  * Hours are local hours of week, Monday 00:00 = 0 ... Sunday 23:00 = 167.
  */
@@ -14,6 +15,7 @@
 
 #define LEARNED_HOURS 168
 #define LEARNED_NIGHT_END_H 6           // "night" for the night flow count: local 00:00-05:59
+#define LEARNED_CLOSE_START_H 1         // the night option closes for flows starting 1:00-5:59 (0:00 carries the evening)
 
 /* Hard bounds: every value from the server is clamped into them */
 #define LEARNED_DUR_MIN_S 60
@@ -40,7 +42,7 @@ typedef struct {
     bool flowing;                       // Tier 1 view of the current flow
     int local_dow;                      // 0 = Monday ... 6 = Sunday; -1 when the clock is not synced
     int local_hour;                     // 0-23; -1 when the clock is not synced
-    int local_yday;                     // day of year, to tell one night from the next
+    int local_yday;                     // a day number (rtc_keep_day), to tell one night from the next
     uint32_t pulses_per_liter;
     uint32_t max_dur_s;                 // cap on the duration limit (below the Tier 1 shut-off), 0 = none
     uint32_t max_vol_l;                 // cap on the volume limit (rules.h tier2_volume_cap_l), 0 = none
@@ -79,6 +81,11 @@ void learned_init(learned_state_t *state);
 
 /* One decision per sample at most; each flow notifies once per indicator, each night once. */
 learned_decision_t learned_update(learned_state_t *state, const learned_config_t *config, const learned_sample_t *s);
+
+/* Owner decision 2026-09-30: with close_night on, a duration or volume hit of a flow that started (local hour
+ * `hour`) between LEARNED_CLOSE_START_H and LEARNED_NIGHT_END_H also closes the valve. Everything else only notifies:
+ * the day (false alarms run at about one a month) and the night flow count. */
+bool learned_closes(learned_hit_t hit, int hour, bool close_night);
 
 /* Duration limit for an hour of week after the cap: a notification that would come after Tier 1 has already shut
  * the water off tells nothing, so the limit stays below it (never under LEARNED_DUR_MIN_S). */

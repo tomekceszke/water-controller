@@ -37,8 +37,10 @@ The plan is in `~/.claude/plans/cele-odnosnie-tego-projektu-rosy-moler.md`. Stag
   - May only *request* a close.
   - A hang or failure in Tier 2 must not delay Tier 1.
 - **Tier 3**: limits learned on hc-data (`learned.c`): per hour of the week, the tightest and the most dependent
-  (hc-data, MQTT, NTP, a fresh model). **Notify only** (owner decision 2026-09-30: it never closes the valve; day-time
-  false alarms run at ~1 a month). Without a valid config it does nothing. Runs in the Tier 2 task.
+  (hc-data, MQTT, NTP, a fresh model). **Notifies**; by day it never closes the valve (day-time false alarms run at
+  ~1 a month). Owner option "Shut off at night" (off by default, NVS `wc_learned` `close_night`): a duration or volume
+  hit of a flow starting 1:00-5:59 also closes (`learned_closes()`, reason `tier3`); the night flow count only
+  notifies (owner decisions 2026-09-30). Without a valid config it does nothing. Runs in the Tier 2 task.
 - **Hierarchy (owner decisions 2026-09-30): Tier 0 > Tier 1 > Tier 2 > Tier 3.** Each tier is tighter and depends on
   more than the one before it. A Tier 2/3 limit reachable only after Tier 1 has shut the water off is meaningless, so
   every Tier 2 and Tier 3 time and volume limit is capped from the Tier 1 limit `T` (`rules.h`): time ≤ `T` × 3/4,
@@ -105,14 +107,14 @@ main/
   tier1.c       pure Tier 1 logic (continuous flow + gap + limit), host-tested
   rules.c       pure Tier 2 rules (volume, burst, night window, micro-leak, vacation, snooze), host-tested
   learned.c     pure Tier 3: learned per-hour limits from hc-data (flow duration/volume, night flow count), notify only,
-                config parse + clamp, host-tested
+                config parse + clamp, night shut-off decision, host-tested
   flow.c        Tier 1 task: PCNT (accumulating, glitch filter 10 us) every 1 s, core 1, task watchdog; valve alert;
                 pulse-interval diagnostics (GPIO ISR, on demand)
   valve.c       only owner of GPIO14; state + reason persisted in NVS and restored at boot (never changed by a reboot)
   protect.c     Tier 2 task on a sample queue (drops, never blocks Tier 1); applies Tier 3 learned limits (NVS wc_learned),
-                today's liters per hour
+                today's liters per hour (RTC memory, `rtc_keep.h`: survives restarts and OTA, not power loss)
   settings.c    Tier 1 limit, calibration, Tier 2 thresholds in NVS, clamped
-  events.c      RAM ring of the last 50 events, daily totals, ntfy notifications
+  events.c      RAM ring of the last 50 events, daily totals (today's in RTC memory), ntfy notifications
   telemetry.c   MQTT to hc-data through its own queue and task (timestamps fixed once the clock syncs)
   api.c         routes on the home-idf HTTP server
   config/       config.h (committed), credentials.h (never committed)
@@ -134,7 +136,7 @@ Common routes come from home-idf: `/`, `/api/session`, `/api/login`, `/api/logou
 | GET | `/api/events` | session | last 50 events (flow, valve, rule, alert); learned rules add `value`, `limit`, `hour` |
 | GET | `/api/learned` | session | today's liters per hour next to the learned expected and p90 values (History chart) |
 | POST | `/api/valve` | mutation | `{state: "open"\|"closed"}` |
-| POST | `/api/settings` | mutation | partial settings (`tier1_limit_s`, `pulses_per_liter`, Tier 2 thresholds), clamped |
+| POST | `/api/settings` | mutation | partial settings (`tier1_limit_s`, `pulses_per_liter`, Tier 2 thresholds, `learned_notify`, `learned_close_night`), clamped |
 | POST | `/api/snooze` | mutation | `{minutes}`: mute Tier 2 volume/burst/night (vacation stays) |
 | POST | `/api/diag` | mutation | `{minutes}`: pulse-interval diagnostics |
 | POST | `/admin/valve` | `Authorization` header | `{state}` for scripts |
@@ -162,6 +164,7 @@ The broker is `mqtt://192.168.11.16:1883`, user `water-controller`, QoS 1. Topic
 
 ```sh
 tools/dev_proxy.py <device-ip> --port 8765   # serves firmware/web/app.html rendered with the home-idf shell, forwards /api and /admin
+tools/dev_proxy.py --mock --port 8765        # no device: anonymised fixtures in tools/mock, state in memory; ?tab=settings
 ```
 - Language: English.
 - Layout, controls and the tab bar come from home-idf (`web/app_shell.css`, `web/app_shell.js`, rendered by
@@ -258,7 +261,7 @@ tools/dev_proxy.py <device-ip> --port 8765   # serves firmware/web/app.html rend
     fixed a missed reopen in the flow task, see docs/TESTING.md); production OTA done 2026-09-30 17:03;
   - `NTFY_URL` in `server/secrets.env` for the hourly check (empty: alarms only in `model_alert`);
   - label the `unlabelled` rows in the private `server/model/known_events.csv` (pool / hose).
-  - `learned_notify` lives in NVS `wc_learned`, not in `settings_t` (its blob has a fixed size: a new field would
+  - `learned_notify` and `close_night` live in NVS `wc_learned`, not in `settings_t` (its blob has a fixed size: a new field would
     reset the stored settings).
   - Legacy volumes of long flows can carry an undetected counter wrap (+80 L): `features.clean_flows` removes wraps
     from legacy flows averaging over 26 L/min; durations and counts are unaffected.

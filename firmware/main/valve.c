@@ -38,6 +38,7 @@ const char *valve_reason_name(valve_reason_t reason)
         case VALVE_BY_TIER1:   return "tier1";
         case VALVE_BY_TIER2:   return "tier2";
         case VALVE_BY_TIER0:   return "tier0";
+        case VALVE_BY_TIER3:   return "tier3";
         default:               return "unknown";
     }
 }

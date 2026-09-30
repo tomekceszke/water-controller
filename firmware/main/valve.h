@@ -16,6 +16,7 @@ typedef enum {
     VALVE_BY_TIER1,         // continuous flow limit (set in the app)
     VALVE_BY_TIER2,         // anomaly rule
     VALVE_BY_TIER0,         // hard-coded 60 min ceiling
+    VALVE_BY_TIER3,         // learned limit at night (owner option)
 } valve_reason_t;
 
 /* First thing at boot, before anything that can block or fail: drives the valve line to the state stored in NVS

@@ -139,9 +139,10 @@ def last_event(kind, since=0, **match):
 def restore():
     pulses(0, 0)
     admin("/admin/test/tier2", {"suspend": False})
+    admin("/admin/test/hour", {"hour": -1})
     request("POST", "/api/snooze", {"minutes": 0})
     wait_idle()
-    settings(tier1_limit_s=1200, max_event_liters=0, pulses_per_liter=K)
+    settings(tier1_limit_s=1200, max_event_liters=0, pulses_per_liter=K, learned_close_night=False)
     if closed():
         valve("open")
 
@@ -311,6 +312,8 @@ def learned():
     cfg = {"v": 1, "generated": "2031-01-01", "model": "hwtest", "dur_s": [3600] * 168, "vol_l": [5] * 168,
            "night_flows": 200, "exp_l": [100] * 168, "p90_l": [300] * 168}
     publish_config(json.dumps(cfg))
+    # Learned limits need the local hour: right after a flash or reboot the clock may not be synced yet
+    wait_for(lambda: status()["system"]["time_synced"], 60)
     applied = wait_for(lambda: status().get("learned", {}).get("generated") == "2031-01-01", 20)
     check("learned config applied", applied is not None, str(status().get("learned")))
     settings(tier1_limit_s=1200, max_event_liters=0, learned_notify=True)
@@ -322,6 +325,34 @@ def learned():
           and t is not None and 22 <= t <= 28, f"{t and round(t)} s {hit}")
     check("learned limit never moves the valve", not closed(), status()["valve"]["state"])
     wait_idle()
+
+    # Tier 3 night shut-off: only with the option on, only for flows starting 1:00-5:59
+    def night_flow(hour, close_night):
+        admin("/admin/test/hour", {"hour": hour})
+        settings(learned_close_night=close_night)
+        since = time.time()
+        pulses(100, 30)
+        wait_for(lambda: last_event("rule", since, rule="learned_volume") is not None, 32)
+        time.sleep(1)
+        hit, shut = last_event("rule", since, rule="learned_volume"), closed()
+        pulses(0, 0)
+        reason = status()["valve"]["reason"]
+        if shut:
+            valve("open")
+        wait_idle()
+        return hit, shut, reason
+
+    hit, shut, _ = night_flow(3, False)
+    check("03:00, option off: notice only", hit is not None and not hit.get("closed") and not shut, str(hit))
+    hit, shut, reason = night_flow(3, True)
+    check("03:00, option on: closed by tier3", hit is not None and hit.get("closed") and shut and reason == "tier3",
+          f"{hit} {reason}")
+    hit, shut, _ = night_flow(12, True)
+    check("12:00, option on: notice only", hit is not None and not hit.get("closed") and not shut, str(hit))
+    hit, shut, _ = night_flow(0, True)
+    check("00:00, option on: notice only", hit is not None and not hit.get("closed") and not shut, str(hit))
+    admin("/admin/test/hour", {"hour": -1})
+    settings(learned_close_night=False)
     reboot_and_login()
     publish_config("")      # a deleted retained message: the device keeps the last limits
     time.sleep(3)
@@ -329,8 +360,27 @@ def learned():
           status().get("learned", {}).get("generated") == "2031-01-01", str(status().get("learned")))
 
 
+def today():
+    """Today's totals and hourly counters (RTC memory) survive a reboot; the since-restart numbers start over."""
+    pulses(100, 10)
+    wait_for(lambda: status()["flow"]["flowing"], 5)     # the flow starts with the next 1 s sample
+    wait_idle()
+    before, day_before = status()["usage"], request("GET", "/api/learned")[1].get("used_l")
+    check("flow counted today", before["liters_today"] > 2, str(before))
+    reboot_and_login()
+    wait_for(lambda: status()["system"]["time_synced"], 30)
+    time.sleep(3)
+    after, day_after = status()["usage"], request("GET", "/api/learned")[1].get("used_l")
+    check("liters today kept across the reboot", abs(after["liters_today"] - before["liters_today"]) < 0.01,
+          f"{before['liters_today']} -> {after['liters_today']}")
+    check("since restart starts over", after["liters_since_boot"] < 0.01 and after["flows_since_boot"] == 0, str(after))
+    if day_before is not None:
+        check("hourly counters kept across the reboot", day_after == day_before, f"{day_before} -> {day_after}")
+
+
 SECTIONS = {"security": security, "counting": counting, "tier1": tier1, "reboot": reboot, "tier2": tier2,
-            "caps": caps, "tier0": tier0, "wifi": wifi, "hang": hang, "learned": learned}
+            "caps": caps, "tier0": tier0, "wifi": wifi, "hang": hang, "learned": learned,
+            "today": today}
 
 if args.list:
     print(" ".join(SECTIONS))

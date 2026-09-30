@@ -20,7 +20,7 @@ rebuilds it around one rule: **the shut-off must work even when everything else 
 <p align="center">
   <img src="docs/img/app-now-flowing.png" width="23%" alt="App: water running, countdown to shut-off">
   <img src="docs/img/app-now-closed.png" width="23%" alt="App: water off, slide to turn on">
-  <img src="docs/img/app-settings.png" width="23%" alt="App: shut-off limit and smart rules">
+  <img src="docs/img/app-settings.png" width="23%" alt="App: settings grouped by protection tier">
   <img src="docs/img/app-history.png" width="23%" alt="App: event history">
 </p>
 
@@ -74,9 +74,9 @@ flowchart LR
 | | Tier 0 | Tier 1 | Tier 2 | Tier 3 |
 |---|---|---|---|---|
 | Rule | 60 min of continuous flow, **hard-coded** | Continuous flow longer than the limit set in the app (1–45 min) | Fixed rules: volume per flow, burst rate, night window, micro-leak notice, away mode | Limits learned from this home's history, per hour of the week: flow duration and volume, flows per night |
-| Action | close | close | close (micro-leak: notify) | **notify only** |
+| Action | close | close | close (micro-leak: notify) | **notify**; optional shut-off for flows starting 1:00–6:00 |
 | Bounds | the widest limit | strictly inside Tier 0 | inside Tier 1: at most 3/4 of its time, and 12 L/min × that time in volume | same caps as Tier 2 |
-| Can be changed | never: no setting, API, snooze or NVS value touches it | from the app, clamped | from the app, can be paused | retrained on the workstation, published over MQTT; notifications switch in the app |
+| Can be changed | never: no setting, API, snooze or NVS value touches it | from the app, clamped | from the app, can be paused | retrained on the workstation, published over MQTT; notifications and the night shut-off switch in the app |
 | Depends on | nothing; own flow tracking in the watchdog-guarded flow task | nothing: own task on core 1, monotonic clock, no network, no allocation, never waits on a queue | local clock for the night rule | hc-data, MQTT, the clock and a model config |
 | If it fails | the task watchdog resets the device; the valve state is restored from NVS | same | Tier 1 and Tier 0 are unaffected (verified with the Tier 2 task suspended) | does nothing; Tiers 0–2 are unaffected |
 

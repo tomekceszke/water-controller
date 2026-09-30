@@ -15,7 +15,7 @@ cmake -S firmware/test -B build-test && cmake --build build-test && ctest --test
 | `test_tier0` | hard-coded 60 min, trips once, a trickle with 5 s pauses is continuous, a longer pause restarts the hour, water turned on again gets a new hour, reopening while water still runs restarts the limit, no repeated trips without a reopen |
 | `test_tier1` | flow start/end with the pause gap, trip exactly once at the limit, trickle flow keeps the timer, trip during a pause, fresh state after a trip, limit lowered during a flow, 2 h of high flow without overflow |
 | `test_rules` (tier caps) | Tier 2 time cap 3/4 of Tier 1, volume cap 12 L/min × that time, at the shortest, default and longest Tier 1 (always inside Tier 1 and Tier 0) |
-| `test_learned` | config parser (valid, wrong array length, wrong version, values clamped to the hard bounds), duration and volume notifications once per flow, the limit of the hour the flow started in, a new flow re-arms, night flow count (tiny flows ignored, once per night, reset the next night), duration and volume limits capped under Tier 1, nothing without a clock or a config |
+| `test_learned` | config parser (valid, wrong array length, wrong version, values clamped to the hard bounds), duration and volume notifications once per flow, the limit of the hour the flow started in, a new flow re-arms, night flow count (tiny flows ignored, once per night, reset the next night), duration and volume limits capped under Tier 1, nothing without a clock or a config; the night shut-off closes only for duration/volume hits of flows starting 1:00-5:59 with the option on |
 | `test_rules` | all rules off, max volume (once per flow, exact pulse threshold), reset between flows, burst duration, night window across midnight, night rule off without a clock, snooze vs vacation, snooze expiry, micro-leak notification once, leak counter reset |
 
 The server side has its own unit tests (no database): `server/model/test_model.py` (hourly grid, DST, wrap fix, split,
@@ -30,7 +30,7 @@ A deliberately broken `tier1.c` (trip flag not latched) makes the suite fail, so
 The test build (`-DWATER_TEST_PULSES=1`, never shipped) adds admin-only endpoints and shortens the clock-bound limits,
 keeping their order (Tier 1 < Tier 0), so the same logic runs in seconds:
 - a square-wave generator on the flow meter pin (LEDC drives the pad, PCNT counts it back);
-- a WiFi outage switch and a Tier 2 hang switch;
+- a WiFi outage switch, a Tier 2 hang switch and a local-hour override for Tier 2/3 (`/admin/test/hour`);
 - Tier 0 at 45 s instead of 60 min, Tier 1 settable from 20 s, and a throwaway web password
   (`-DWATER_TEST_SALT_HEX/-DWATER_TEST_HASH_HEX`).
 
@@ -51,6 +51,10 @@ WC_PASSWORD=... WC_ADMIN=... tools/hw_test.py <spare-ip> --only tier1,caps # jus
 Result on 2026-09-30 (firmware 3.4.0, ESP32-D0WDQ6 spare board): all sections pass; a full run takes 518 s (was
 about 17 min with the 150 s Tier 0 and 60 s Tier 1 of earlier test builds).
 
+Result on 2026-09-30 (firmware 3.4.2, with the learned night and today checks): 47 checks pass in 782 s. The
+first section right after flashing (counting) once reported a 20 s flow event of 50 L instead of 4.2 L and a 7 ms
+minimum pulse interval; two reruns of the section were clean and it is not explained yet: watch for it.
+
 | Section | Check | Result |
 |---|---|---|
 | security | status without session, mutation without CSRF, foreign Host, foreign Origin, admin without header | 401 / 403 / 403 / 403 / 401 |
@@ -64,6 +68,8 @@ about 17 min with the 150 s Tier 0 and 60 s Tier 1 of earlier test builds).
 | wifi | WiFi off for 40 s during the flow | closed by Tier 1, no reboot |
 | hang | Tier 2 task suspended (its 1 L rule would fire at ~10 s) | closed by Tier 1 after 20 s |
 | learned | retained `water-spare/<mac>/config`, 5 L at every hour | applied; notice after 24 s with limit 5 L; valve untouched; limits survive a reboot and a deleted retained message |
+| learned (night) | hour forced to 3:00 / 12:00 / 0:00, night shut-off off and on | 3:00 off: notice; 3:00 on: closed, reason `tier3`, rule event `closed`; 12:00 and 0:00 on: notice only |
+| today | 2.4 L flow, then a reboot | liters today and the hourly counters unchanged (RTC memory), since-restart numbers back to 0 |
 
 The hardware test found these bugs:
 - logging started before the network stack crashed the device;

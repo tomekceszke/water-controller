@@ -107,6 +107,7 @@ cJSON *api_status_json(void)
     cJSON_AddBoolToObject(learned, "active", l.active);
     cJSON_AddStringToObject(learned, "generated", l.generated);
     cJSON_AddBoolToObject(learned, "notify", l.notify);
+    cJSON_AddBoolToObject(learned, "close_night", l.close_night);
     cJSON_AddNumberToObject(learned, "limit_s", l.limit_s);
     cJSON_AddNumberToObject(learned, "limit_l", l.limit_l);
     cJSON_AddNumberToObject(learned, "night_s", l.night_s);
@@ -257,6 +258,8 @@ static esp_err_t settings_handler(httpd_req_t *req)
     // Kept outside settings_t: its NVS blob has a fixed size and a new field would reset the stored settings
     const cJSON *learned_notify = cJSON_GetObjectItemCaseSensitive(body, "learned_notify");
     if (cJSON_IsBool(learned_notify)) protect_learned_set_notify(cJSON_IsTrue(learned_notify));
+    const cJSON *learned_close_night = cJSON_GetObjectItemCaseSensitive(body, "learned_close_night");
+    if (cJSON_IsBool(learned_close_night)) protect_learned_set_close_night(cJSON_IsTrue(learned_close_night));
     cJSON_Delete(body);
 
     esp_err_t err = settings_set(&s);

@@ -37,6 +37,7 @@ typedef struct {
     bool active;                    // a valid config from hc-data is loaded
     char generated[11];             // its date, YYYY-MM-DD
     bool notify;                    // owner switch (Settings)
+    bool close_night;               // owner switch: also close for flows starting 1:00-5:59 (learned_closes)
     bool flowing;
     uint32_t limit_s, limit_l;      // for the current flow (its start hour), else for the hour now; 0 = none
     uint32_t night_s, night_l;      // the coming night, 1:00-5:59: loosest of its hours; 0 = none
@@ -53,6 +54,9 @@ void protect_learned_offer(const char *data, size_t len);
 
 void protect_learned_set_notify(bool on);
 
+/* Tier 3 night shut-off (off by default); kept in NVS wc_learned. */
+void protect_learned_set_close_night(bool on);
+
 void protect_learned_status(protect_learned_t *out);
 
 /* Today's expected and used liters per hour; false without learned limits or a synced clock. */
@@ -61,4 +65,7 @@ bool protect_learned_today(protect_learned_day_t *out, uint32_t pulses_per_liter
 #ifdef WATER_TEST_PULSES
 /* Test builds only: simulates a hung Tier 2 task. */
 void protect_test_suspend(bool suspend);
+
+/* Test builds only: Tier 2/3 see this local hour (0-23) instead of the clock's; -1 restores the clock. */
+void protect_test_hour(int hour);
 #endif
