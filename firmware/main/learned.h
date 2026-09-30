@@ -1,7 +1,7 @@
 #pragma once
 
 /*
- * Tier 2b: limits learned on hc-data (server/model), delivered as the retained MQTT water/<mac>/config.
+ * Tier 3: limits learned on hc-data (server/model), delivered as the retained MQTT water/<mac>/config.
  * Pure logic (no ESP-IDF), unit-tested on the host. Notification only: it never requests a close, and without a
  * valid config it does nothing, so the device behaves exactly as before.
  *

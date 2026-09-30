@@ -26,7 +26,7 @@
  *   water/<mac>/alert    {"ts":<unix>,"detail":"..."}
  *   water/<mac>/status   "online" / "offline" (retained, LWT; published by hi_mqtt)
  *   water/<mac>/state    the full status JSON (retained; published by hi_mqtt)
- *   water/<mac>/config   subscribed: learned limits from hc-data (retained), handed to Tier 2 (protect.c)
+ *   water/<mac>/config   subscribed: learned limits from hc-data (retained), handed to Tier 3 (protect.c)
  * Items created before the clock is synced wait in the queue and get their wall-clock time once it is.
  */
 

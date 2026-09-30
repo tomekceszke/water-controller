@@ -33,14 +33,18 @@ The plan is in `~/.claude/plans/cele-odnosnie-tego-projektu-rosy-moler.md`. Stag
   strictly inside Tier 0's 60 min, never disabled).
   - Must work with no WiFi, NTP, MQTT, ntfy, httpd, Tier 2 or valid NVS (defaults from `config.h`).
   - Own task, monotonic clock, no network, no blocking on queues.
-- **Tier 2**: anomaly rules on the device (volume, burst, night window, micro-leak, vacation) plus thresholds learned on hc-data.
-  - May only *request* a close (learned limits only notify).
+- **Tier 2**: fixed anomaly rules on the device, set by the owner (volume, burst, night window, micro-leak, vacation).
+  - May only *request* a close.
   - A hang or failure in Tier 2 must not delay Tier 1.
-- **Hierarchy (owner decision 2026-09-30): Tier 0 > Tier 1 > Tier 2.** A Tier 2 limit reachable only after Tier 1 has
-  shut the water off is meaningless, so every Tier 2 time and volume limit is capped from the Tier 1 limit `T`
-  (`rules.h`): time ≤ `T` × 3/4, volume ≤ 12 L/min × that time (15 min and 180 L at the 20 min default). The caps apply
-  to the settings (`settings.c` sanitize, re-clamped when Tier 1 changes) and to the learned limits at runtime.
-  `leak_notify_min` is exempt (it counts intermittent use, which Tier 1 never closes).
+- **Tier 3**: limits learned on hc-data (`learned.c`): per hour of the week, the tightest and the most dependent
+  (hc-data, MQTT, NTP, a fresh model). **Notify only** (owner decision 2026-09-30: it never closes the valve; day-time
+  false alarms run at ~1 a month). Without a valid config it does nothing. Runs in the Tier 2 task.
+- **Hierarchy (owner decisions 2026-09-30): Tier 0 > Tier 1 > Tier 2 > Tier 3.** Each tier is tighter and depends on
+  more than the one before it. A Tier 2/3 limit reachable only after Tier 1 has shut the water off is meaningless, so
+  every Tier 2 and Tier 3 time and volume limit is capped from the Tier 1 limit `T` (`rules.h`): time ≤ `T` × 3/4,
+  volume ≤ 12 L/min × that time (15 min and 180 L at the 20 min default). The caps apply to the settings (`settings.c`
+  sanitize, re-clamped when Tier 1 changes) and to the learned limits at runtime. `leak_notify_min` is exempt (it
+  counts intermittent use, which Tier 1 never closes).
 - **Valve state survives reboot and power loss**: firmware never changes it at boot, it restores the last commanded state from NVS.
 - Telemetry and notifications are fire-and-forget (non-blocking enqueue, drop when full).
 
@@ -85,7 +89,7 @@ cmake -S firmware/test -B build-test && cmake --build build-test && ctest --test
      - `NTFY_ERROR_TOPIC` (loud): technical errors from the log and **protection alarms** (valve shut off by Tier 0/1/2,
        water flowing after a close; `hi_notify_alarm_ex`). Network noise (MQTT/OTA/HTTP client tags) is filtered out
        in `main.c`, and shut-offs are logged as warnings so they do not arrive twice.
-     - `NTFY_WARNING_TOPIC`: Tier 2 notices (learned limits, dripping leak); hc-data `score.py` posts here too
+     - `NTFY_WARNING_TOPIC`: Tier 2/3 notices (learned limits, dripping leak); hc-data `score.py` posts here too
        (`NTFY_URL` in `server/secrets.env`). Empty: they go to `NTFY_TOPIC`.
      - `NTFY_TOPIC` (quiet): water on, a shut-off by the owner, start.
    - Secrets are stored obfuscated (`home-idf/tools/obfuscate.py` → `"obf1:..."`, `--reveal` to read back); that is
@@ -100,12 +104,12 @@ main/
   main.c        boot: NVS → valve_restore → settings → Tier 0/1 task → health → log → Tier 2 → WiFi/notify/NTP/OTA/MQTT/auth/httpd
   tier1.c       pure Tier 1 logic (continuous flow + gap + limit), host-tested
   rules.c       pure Tier 2 rules (volume, burst, night window, micro-leak, vacation, snooze), host-tested
-  learned.c     pure Tier 2b: learned per-hour limits from hc-data (flow duration/volume, night flow count), notify only,
+  learned.c     pure Tier 3: learned per-hour limits from hc-data (flow duration/volume, night flow count), notify only,
                 config parse + clamp, host-tested
   flow.c        Tier 1 task: PCNT (accumulating, glitch filter 10 us) every 1 s, core 1, task watchdog; valve alert;
                 pulse-interval diagnostics (GPIO ISR, on demand)
   valve.c       only owner of GPIO14; state + reason persisted in NVS and restored at boot (never changed by a reboot)
-  protect.c     Tier 2 task on a sample queue (drops, never blocks Tier 1); applies learned limits (NVS wc_learned),
+  protect.c     Tier 2 task on a sample queue (drops, never blocks Tier 1); applies Tier 3 learned limits (NVS wc_learned),
                 today's liters per hour
   settings.c    Tier 1 limit, calibration, Tier 2 thresholds in NVS, clamped
   events.c      RAM ring of the last 50 events, daily totals, ntfy notifications
@@ -150,7 +154,7 @@ The broker is `mqtt://192.168.11.16:1883`, user `water-controller`, QoS 1. Topic
 | `water/<mac>/rule` | Tier 2 triggers |
 | `water/<mac>/alert` | alerts |
 | `water/<mac>/status` | retained `online` / `offline` (LWT) |
-| `water/<mac>/state` | retained full status JSON (hi_mqtt), every 60 s and at once on a valve change, a Tier 2 notice or an alert (`telemetry_post_event`); the Apple Home bridge (`../homebridge_plugins`) maps it to "Water leak" (protection shut-off, critical), "Unusual water use" (Tier 2 notice or a flow past its learned limit), valve and flow |
+| `water/<mac>/state` | retained full status JSON (hi_mqtt), every 60 s and at once on a valve change, a Tier 2/3 notice or an alert (`telemetry_post_event`); the Apple Home bridge (`../homebridge_plugins`) maps it to "Water leak" (protection shut-off, critical), "Unusual water use" (Tier 2 notice or a flow past its Tier 3 learned limit), valve and flow |
 | `water-spare/<mac>/...` | spare-board builds (`WATER_SPARE`): same topics in their own namespace, which wc-ingest and the Apple Home bridge (`../homebridge_plugins`, reads `water/+/state`; a protection shut-off there is a critical "Water leak") ignore |
 | `water/<mac>/config` | **subscribed**, retained, published by hc-data `wc-model` (`server/model/publish.py`): learned limits, 168 values per array (Mon 00:00 first), clamped by `learned.c`; a deleted message keeps the last limits |
 

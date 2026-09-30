@@ -63,7 +63,7 @@ flowchart LR
     pcnt --> t1{{"Tier 1 task<br/>continuous flow > limit?"}}
     t1 -- yes --> valve[[Valve closed<br/>state saved in NVS]]
     t1 -. samples, never blocks .-> q1[(queue)]
-    q1 --> t2{{"Tier 2 task<br/>volume, burst, night, leak, away<br/>+ learned limits (notify only)"}}
+    q1 --> t2{{"Tier 2 task<br/>rules: volume, burst, night, leak, away<br/>Tier 3: learned limits (notify only)"}}
     t2 -- request --> valve
     t1 -. events, never blocks .-> q2[(queue)]
     q2 --> mqtt[MQTT → hc-data]
@@ -71,13 +71,16 @@ flowchart LR
     server[(PostgreSQL history)] -. usage model, retained MQTT config .-> t2
 ```
 
-| | Tier 0 | Tier 1 | Tier 2 |
-|---|---|---|---|
-| Rule | 60 min of continuous flow, **hard-coded** | Continuous flow longer than the limit set in the app (1–45 min) | Volume per flow, burst rate, night window, micro-leak notice, away mode; learned per-hour limits (notify only) |
-| Bounds | the widest limit | strictly inside Tier 0 | inside Tier 1: at most 3/4 of its time, and 12 L/min × that time in volume |
-| Can be changed | never: no setting, API, snooze or NVS value touches it | from the app, clamped | from the app, can be paused |
-| Depends on | nothing; own flow tracking in the watchdog-guarded flow task | nothing: own task on core 1, monotonic clock, no network, no allocation, never waits on a queue | local clock for the night rule |
-| If it fails | the task watchdog resets the device; the valve state is restored from NVS | same | Tier 1 and Tier 0 are unaffected (verified with the Tier 2 task suspended) |
+| | Tier 0 | Tier 1 | Tier 2 | Tier 3 |
+|---|---|---|---|---|
+| Rule | 60 min of continuous flow, **hard-coded** | Continuous flow longer than the limit set in the app (1–45 min) | Fixed rules: volume per flow, burst rate, night window, micro-leak notice, away mode | Limits learned from this home's history, per hour of the week: flow duration and volume, flows per night |
+| Action | close | close | close (micro-leak: notify) | **notify only** |
+| Bounds | the widest limit | strictly inside Tier 0 | inside Tier 1: at most 3/4 of its time, and 12 L/min × that time in volume | same caps as Tier 2 |
+| Can be changed | never: no setting, API, snooze or NVS value touches it | from the app, clamped | from the app, can be paused | retrained on the workstation, published over MQTT; notifications switch in the app |
+| Depends on | nothing; own flow tracking in the watchdog-guarded flow task | nothing: own task on core 1, monotonic clock, no network, no allocation, never waits on a queue | local clock for the night rule | hc-data, MQTT, the clock and a model config |
+| If it fails | the task watchdog resets the device; the valve state is restored from NVS | same | Tier 1 and Tier 0 are unaffected (verified with the Tier 2 task suspended) | does nothing; Tiers 0–2 are unaffected |
+
+Each tier is tighter than the one before it and depends on more.
 
 Tier 0 guards against anything going wrong with Tier 1 (a bad setting, a bug in its logic or in storage). A long,
 legitimate fill (a pool) just means turning the water back on in the app once an hour.
@@ -93,7 +96,7 @@ All tiers are pure C modules (`tier0.c`, `tier1.c`, `rules.c`, `learned.c`) with
 flowchart TB
     subgraph device[ESP32, firmware 3.x, ESP-IDF 5.4.2]
         tier1[Tier 1 flow task] --- valve[valve + NVS]
-        tier2[Tier 2 rules]
+        tier2[Tier 2 rules<br/>Tier 3 learned limits]
         api[HTTP API + PWA<br/>sessions, CSRF, host guard]
         tele[telemetry queue]
         ota[OTA + health / rollback]

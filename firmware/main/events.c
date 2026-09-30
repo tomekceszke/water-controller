@@ -75,7 +75,7 @@ static void update_totals(const event_t *e, bool small)
 /* Three ntfy topics by what the owner has to do (owner decision 2026-09-30):
  *   error   (loud)  the device acted to protect or failed at it: shut-off by Tier 0/1/2, water flowing after a close;
  *                   plus technical errors from the log (hi_log -> hi_notify_error, see main.c)
- *   warning         Tier 2 notices to look at when convenient: learned limits, dripping leak
+ *   warning         Tier 2/3 notices to look at when convenient: learned limits, dripping leak
  *   info    (quiet) everything else: water on, a shut-off by the owner, start */
 static void notify(const event_t *e)
 {

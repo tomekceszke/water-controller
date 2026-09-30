@@ -29,7 +29,7 @@ static rule_t s_last_rule = RULE_NONE;
 static int64_t s_last_rule_ms;
 static bool s_last_rule_closed;
 
-/* Tier 2b: learned limits. The MQTT task only copies an incoming config into s_rx and raises s_rx_pending; this
+/* Tier 3: learned limits. The MQTT task only copies an incoming config into s_rx and raises s_rx_pending; this
  * task parses it, persists it and swaps it in. Everything else here is owned by this task, except what
  * protect_learned_status()/protect_learned_today() copy out under s_mux. */
 static const char *LEARNED_NVS_NAMESPACE = "wc_learned";
@@ -286,9 +286,10 @@ void protect_learned_status(protect_learned_t *out)
     // The coming night (tonight before 6:00, else the next one) without its first hour, which carries the evening
     if (s_learned.valid && s_now_how >= 0) {
         const int day = s_now_how % 24 < LEARNED_NIGHT_END_H ? s_now_how / 24 : (s_now_how / 24 + 1) % 7;
+        const uint32_t tier1_s = settings_tier1_limit_s();
         for (int h = 1; h < LEARNED_NIGHT_END_H; h++) {
-            const uint32_t ds = learned_dur_limit(&s_learned, day * 24 + h, tier2_time_cap_s(settings_tier1_limit_s()));
-            const uint32_t dl = learned_vol_limit(&s_learned, day * 24 + h, tier2_volume_cap_l(settings_tier1_limit_s()));
+            const uint32_t ds = learned_dur_limit(&s_learned, day * 24 + h, tier2_time_cap_s(tier1_s));
+            const uint32_t dl = learned_vol_limit(&s_learned, day * 24 + h, tier2_volume_cap_l(tier1_s));
             if (ds > out->night_s) out->night_s = ds;
             if (dl > out->night_l) out->night_l = dl;
         }

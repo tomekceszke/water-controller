@@ -21,7 +21,8 @@ typedef struct {
     bool last_rule_closed;
 } protect_status_t;
 
-/* Tier 2a task (local rules). Optional by design: if it lags or stops, Tier 1 is unaffected. */
+/* Tier 2 task (local rules, plus Tier 3 learned limits). Optional by design: if it lags or stops, Tier 1 is
+ * unaffected. */
 void protect_start(void);
 
 /* Non-blocking (called by Tier 1); samples are dropped when the queue is full. */
