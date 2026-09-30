@@ -150,6 +150,7 @@ The broker is `mqtt://192.168.11.16:1883`, user `water-controller`, QoS 1. Topic
 | `water/<mac>/rule` | Tier 2 triggers |
 | `water/<mac>/alert` | alerts |
 | `water/<mac>/status` | retained `online` / `offline` (LWT) |
+| `water/<mac>/state` | retained full status JSON (hi_mqtt), every 60 s and at once on a valve change, a Tier 2 notice or an alert (`telemetry_post_event`); the Apple Home bridge (`../homebridge_plugins`) maps it to "Water leak" (protection shut-off, critical), "Unusual water use" (Tier 2 notice or a flow past its learned limit), valve and flow |
 | `water-spare/<mac>/...` | spare-board builds (`WATER_SPARE`): same topics in their own namespace, which wc-ingest and the Apple Home bridge (`../homebridge_plugins`, reads `water/+/state`; a protection shut-off there is a critical "Water leak") ignore |
 | `water/<mac>/config` | **subscribed**, retained, published by hc-data `wc-model` (`server/model/publish.py`): learned limits, 168 values per array (Mon 00:00 first), clamped by `learned.c`; a deleted message keeps the last limits |
 

@@ -158,6 +158,10 @@ void telemetry_post_event(const event_t *event)
 {
     item_t item = {.is_sample = false, .event = *event};
     post(&item);
+    // Subscribers of the retained state (the Apple Home bridge) learn about a valve change, a Tier 2 notice or an
+    // alert now instead of at the next 60 s refresh. Only signals the hi_mqtt state task: never blocks the caller,
+    // which may be the Tier 1 task.
+    if (event->type == EV_VALVE || event->type == EV_RULE || event->type == EV_ALERT) hi_mqtt_state_publish_now();
 }
 
 void telemetry_post_sample(const telemetry_sample_t *sample)
