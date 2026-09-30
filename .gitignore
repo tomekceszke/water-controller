@@ -40,3 +40,4 @@ migrator/blobs/
 server/model/data/
 server/model/out/
 server/model/known_events.csv
+server/model/meter_readings.csv

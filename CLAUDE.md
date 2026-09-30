@@ -29,13 +29,18 @@ The plan is in `~/.claude/plans/cele-odnosnie-tego-projektu-rosy-moler.md`. Stag
   - Own flow tracking (pause > 5 s ends a flow) in the flow task; test builds shorten it (`WATER_TEST_TIER0_S`).
   - Owner decision 2026-09-15: after an hour of water nothing is left to save; a long fill means reopening once an hour.
 
-- **Tier 1**: close the valve after continuous flow longer than a configurable limit (settable from the app, hard min/max,
-  never above Tier 0's 60 min, never disabled).
+- **Tier 1**: close the valve after continuous flow longer than a configurable limit (settable from the app, 1-45 min,
+  strictly inside Tier 0's 60 min, never disabled).
   - Must work with no WiFi, NTP, MQTT, ntfy, httpd, Tier 2 or valid NVS (defaults from `config.h`).
   - Own task, monotonic clock, no network, no blocking on queues.
 - **Tier 2**: anomaly rules on the device (volume, burst, night window, micro-leak, vacation) plus thresholds learned on hc-data.
-  - May only *request* a close.
+  - May only *request* a close (learned limits only notify).
   - A hang or failure in Tier 2 must not delay Tier 1.
+- **Hierarchy (owner decision 2026-09-30): Tier 0 > Tier 1 > Tier 2.** A Tier 2 limit reachable only after Tier 1 has
+  shut the water off is meaningless, so every Tier 2 time and volume limit is capped from the Tier 1 limit `T`
+  (`rules.h`): time ≤ `T` × 3/4, volume ≤ 12 L/min × that time (15 min and 180 L at the 20 min default). The caps apply
+  to the settings (`settings.c` sanitize, re-clamped when Tier 1 changes) and to the learned limits at runtime.
+  `leak_notify_min` is exempt (it counts intermittent use, which Tier 1 never closes).
 - **Valve state survives reboot and power loss**: firmware never changes it at boot, it restores the last commanded state from NVS.
 - Telemetry and notifications are fire-and-forget (non-blocking enqueue, drop when full).
 
@@ -179,7 +184,10 @@ tools/dev_proxy.py <device-ip> --port 8765   # serves firmware/web/app.html rend
 
 ## Rules
 
-- **Never** commit: `credentials.h`, `certs/*`, `*.pem`, `*.p12`, `gcp/`, `legacy/`, `*.private.env.json`, `secrets.env`.
+- **Never** commit: `credentials.h`, `certs/*`, `*.pem`, `*.p12`, `gcp/`, `legacy/`, `*.private.env.json`, `secrets.env`,
+  `server/model/known_events.csv`, `server/model/meter_readings.csv`.
+- The utility's invoices (kept outside the repo) and the readings taken from them are private: never commit or publish
+  readings, amounts, names, addresses, account or meter numbers; docs show ratios only (`server/model/meter.py`).
   - Run `git check-ignore` before `git add`.
 - Commit and push to `master` after each verified stage. Commit messages clean, no AI attribution.
 - Never close or open the production valve, and never call `/test-send-metrics`, without the owner's explicit OK.
@@ -221,6 +229,12 @@ tools/dev_proxy.py <device-ip> --port 8765   # serves firmware/web/app.html rend
   - design (owner picked it on 2026-09-16 from mocks): left-aligned wordmark split on the name's first hyphen,
     accent `W-` at 1.45x over `controller`, no subtitle, field and button both 58 px with a 20 px gap;
   - still to do: gate (`g-controller`), heating and floor-heating when they move to home-idf.
+- [x] Utility meter check (2026-09-30): `server/model/invoices.py` reads the main-meter readings from the invoice PDFs
+  (garden sub-meter ignored: it sits behind the flow meter) into the private `meter_readings.csv`; `meter.py` compares
+  per billing interval. Findings: the legacy wrap bug began in July 2023; legacy telemetry lost water (most in 2024);
+  use is flat since mid-2023 (the "10 %/year growth" was lost data); 2026 intervals confirm 410 pulses/L.
+  `features.clean_flows` scales legacy volumes to the meter per interval (smoothed over 3). Re-run `invoices.py` +
+  `meter.py` with new invoices; after 36 m³ of firmware 3.x intervals it recommends a factor if it is off by > 3 %.
 - [~] Stage 7 anomaly model: offline part done (hourly forecast, thresholds, synthetic-leak evaluation). Online part
   (owner decisions 2026-09-29: device + server, **notify only**, retained MQTT config, four UI pieces) written:
   home-idf v0.1.14 `hi_mqtt_subscribe`, firmware 3.4.0 (`learned.c`, `/api/learned`, app), hc-data `wc-model-score`

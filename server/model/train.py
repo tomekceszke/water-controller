@@ -18,7 +18,7 @@ from sklearn.metrics import mean_absolute_error, mean_pinball_loss, mean_poisson
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 import features  # noqa: E402
 from data import load_flows  # noqa: E402
-from features import TZ, hourly_frame, load_known_events  # noqa: E402
+from features import TZ, age_weights, hourly_frame, load_known_events  # noqa: E402
 from models import GBM, HourOfWeek, PoissonGLM  # noqa: E402
 
 OUT = features.OUT
@@ -26,13 +26,15 @@ TARGETS = ("liters", "flows")
 # No 0.999: the quantile loss gradient below the prediction is 1 - alpha, so boosting barely moves off the global
 # 0.999 quantile in quiet hours (it predicted ~30 flows for 03:00, where 4 is the most ever seen).
 QUANTILES = (0.5, 0.9, 0.99)
-# Level correction: scale predictions by actual / predicted over the preceding N days (0 = off). Usage drifts
-# upward year over year (~10.5 m3/month in 2024, ~12.5 in 2026) and a calendar-only model cannot follow it.
+# Level correction: scale predictions by actual / predicted over the preceding N days (0 = off). It follows level
+# changes a calendar cannot know. (The apparent growth of about 10 % a year in the legacy data was lost telemetry,
+# not use: the utility meter shows flat use since mid-2023; features.reconcile scales legacy volumes to the meter.)
 LEVEL_DAYS = (0, 28, 56)
 LEVEL_CLIP = (0.5, 2.0)
-# Start of the training window (a hyperparameter); "weighted" = all data, half-life of 2 years
-WINDOWS = {"2020-06": ("2020-06-19", None), "2022-09": ("2022-09-01", None), "2024-01": ("2024-01-01", None),
-           "2020-06 weighted": ("2020-06-19", 2.0)}
+# Recency weights (features.age_weights, owner decision 2026-09-30): the last 2 years count fully, each further year
+# back by the decay, nothing beyond 5 years; the decay is a hyperparameter. "all data" is the unweighted reference.
+WINDOWS = {"last 2 y": (0.0, 5), "decay 0.25": (0.25, 5), "decay 0.5": (0.5, 5), "decay 0.75": (0.75, 5),
+           "all data": (1.0, None)}
 
 
 def candidates():
@@ -54,14 +56,12 @@ def usable(df):
 
 
 def window(df, name, until):
-    start, half_life = WINDOWS[name]
-    local = df.index.tz_convert(TZ).tz_localize(None)
-    part = df[(local >= pd.Timestamp(start)) & df["split"].isin(until)]
-    w = None
-    if half_life:
-        age = (part.index.max() - part.index).total_seconds() / (365.25 * 86400)
-        w = 0.5 ** (age / half_life)
-    return part, w
+    """Rows of the `until` splits with a positive recency weight, and those weights (age from the last row)."""
+    decay, max_years = WINDOWS[name]
+    part = df[df["split"].isin(until)]
+    w = age_weights(part.index, part.index.max(), decay, max_years=max_years)
+    keep = w > 0
+    return part[keep], w[keep]
 
 
 def scores(y, p, index):
@@ -174,7 +174,7 @@ def main():
     for target in TARGETS:
         rows = select(df, target)
         best = min(rows, key=lambda r: r["poisson_deviance"])
-        b0 = next(r for r in rows if r["model"].startswith("B0") and r["window"] == "2020-06" and not r["level_days"])
+        b0 = next(r for r in rows if r["model"].startswith("B0") and r["window"] == "all data" and not r["level_days"])
         make = next(m for n, s, m in candidates() if n == best["model"])
         season, win, days = best["season"], best["window"], best["level_days"]
 
@@ -185,7 +185,7 @@ def main():
 
         # Test: refit on train + validation, evaluate once
         test = fit_eval(make, chosen, ok, target, win, ["train", "validation"], "test", days)
-        base = fit_eval(lambda: HourOfWeek(), [], ok, target, "2020-06", ["train", "validation"], "test", 0)
+        base = fit_eval(lambda: HourOfWeek(), [], ok, target, "all data", ["train", "validation"], "test", 0)
         lag = {}
         lagged = usable(with_lags(df, target))
         for split_eval, fit_on in (("validation", ["train"]), ("test", ["train", "validation"])):

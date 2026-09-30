@@ -72,7 +72,8 @@ flowchart LR
 
 | | Tier 0 | Tier 1 | Tier 2 |
 |---|---|---|---|
-| Rule | 60 min of continuous flow, **hard-coded** | Continuous flow longer than the limit set in the app (1 min–1 h) | Volume per flow, burst rate, night window, micro-leak notice, away mode; learned per-hour limits (notify only) |
+| Rule | 60 min of continuous flow, **hard-coded** | Continuous flow longer than the limit set in the app (1–45 min) | Volume per flow, burst rate, night window, micro-leak notice, away mode; learned per-hour limits (notify only) |
+| Bounds | the widest limit | strictly inside Tier 0 | inside Tier 1: at most 3/4 of its time, and 12 L/min × that time in volume |
 | Can be changed | never: no setting, API, snooze or NVS value touches it | from the app, clamped | from the app, can be paused |
 | Depends on | nothing; own flow tracking in the watchdog-guarded flow task | nothing: own task on core 1, monotonic clock, no network, no allocation, never waits on a queue | local clock for the night rule |
 | If it fails | the task watchdog resets the device; the valve state is restored from NVS | same | Tier 1 and Tier 0 are unaffected (verified with the Tier 2 task suspended) |
@@ -140,6 +141,10 @@ previous cloud setup (269 518 flows since June 2020) was imported with a correct
   <source media="(prefers-color-scheme: dark)" srcset="docs/img/usage-by-hour-dark.png">
   <img src="docs/img/usage-by-hour-light.png" alt="Bar chart of average liters per hour of day in 2023-2025: under 1 L per hour between 1:00 and 6:00, about 20 L per hour in the morning, a peak of 54 L at 19:00">
 </picture>
+
+The history is checked against the water utility's own meter readings (billing intervals since 2023): they
+confirm the 410 pulses per liter, date the old firmware's counter bug to July 2023, and show that the old telemetry
+lost part of the water, so its volumes are reconciled to the meter before any model sees them.
 
 The quiet nights make the anomaly idea concrete: water running at 3 am is rarely legitimate. A model trained on this
 history ([`docs/USAGE_MODEL.md`](docs/USAGE_MODEL.md), code in `server/model/`) forecasts usage per hour from the

@@ -47,6 +47,10 @@ FLOW_IND = {
 # trust a one-minute night limit (it produced 1.7 false alarms a month on test). A 15 min leak at 03:00 is still
 # caught after 3 min.
 FLOOR = {"duration": np.log(180), "volume": np.log(20)}
+# Ceiling for the slow-flow limit: a drip or a leaking cistern valve runs under 1 L/min, a tap left slightly open at
+# 1-3 L/min is ordinary use. Tuned on a validation year with no slow flows, the limit rose to ~3 L/min and alarmed on
+# ordinary use in the test year.
+CEIL = {"rate_low": np.log(1.0)}
 # Flows per hour is predicted (train.py) but not an alarm: night_flows covers the case with a far lower limit
 HOUR_IND = {"hour_liters": "liters"}
 # Upper indicators: the per-hour maximum of normal data (models.HourMax) times a margin. Lower (slow flow):
@@ -67,7 +71,7 @@ LOG_MARGINS = np.linspace(0, np.log(8), 61)
 MAX_MARGINS = np.round(np.arange(1.0, 2.01, 0.05), 2)
 MAX_INDICATORS = ("duration", "volume", "rate_high", "hour_liters")
 MAX_BUDGET = 0.75
-FLOW_WINDOWS = ("2020-06", "2024-01")
+FLOW_WINDOWS = ("last 2 y", "decay 0.5")
 LEAKS = {"rate_lpm": (1, 3, 6, 12, 35), "minutes": (5, 15, 30, 60)}
 N_TRIALS = 200
 SEED = {"validation": 1, "test": 2}
@@ -83,17 +87,19 @@ def flow_table(flows, events):
 
 def fit_flow_models(fr, fit_on, win, season):
     """Quantile GBMs per indicator and alpha on normal flows of `fit_on` splits."""
-    tr, _ = window(fr.set_index("start_ts", drop=False), win, fit_on)
-    tr = tr[~tr["known"]]
+    tr, w = window(fr.set_index("start_ts", drop=False), win, fit_on)
+    normal = ~tr["known"].to_numpy()
+    tr, w = tr[normal], w[normal]
     models = {}
     for ind, spec in FLOW_IND.items():
-        part = tr[tr["duration_s"] >= spec["min_dur"]]
+        sel = (tr["duration_s"] >= spec["min_dur"]).to_numpy()
+        part, pw = tr[sel], w[sel]
         for a in ALPHAS[spec["side"]]:
             if a == "max":
-                models[(ind, a)] = HourMax().fit(part, part[spec["col"]].to_numpy())
+                models[(ind, a)] = HourMax().fit(part, part[spec["col"]].to_numpy(), pw)
             else:
                 models[(ind, a)] = GBM(season=season, loss="quantile", quantile=a, min_samples_leaf=200,
-                                       max_iter=300).fit(part, part[spec["col"]].to_numpy())
+                                       max_iter=300).fit(part, part[spec["col"]].to_numpy(), pw)
     return models
 
 
@@ -113,7 +119,7 @@ def flow_limits(models, choice, X):
                 a, m = choice[ind][b]
                 q = models[(ind, a)].predict(X[sel])
                 t[sel] = q + m if spec["side"] == "upper" else q - m
-        out[ind] = np.maximum(t, FLOOR.get(ind, -np.inf))
+        out[ind] = np.minimum(np.maximum(t, FLOOR.get(ind, -np.inf)), CEIL.get(ind, np.inf))
     return pd.DataFrame(out, index=X.index)
 
 
@@ -137,8 +143,8 @@ def flow_alarms(fl, limits):
 
 def fit_hour_model(df, cfg, target, fit_on):
     """Largest normal hourly total per local hour (±1 h) in the training window of the hourly model."""
-    tr, _ = window(usable(df), cfg["window"], fit_on)
-    return HourMax().fit(tr, tr[target].to_numpy())
+    tr, w = window(usable(df), cfg["window"], fit_on)
+    return HourMax().fit(tr, tr[target].to_numpy(), w)
 
 
 def hourly_limits(df, cfg, target, fit_on):
@@ -153,12 +159,12 @@ def months(df, split):
     return len(ok) / (365.25 * 24 / 12)
 
 
-def _pick(values, q_by_alpha, side, allowed, floor=-np.inf):
+def _pick(values, q_by_alpha, side, allowed, floor=-np.inf, ceil=np.inf):
     """Most sensitive (alpha, log margin) with at most `allowed` exceedances; returns (alpha, margin, n)."""
     best, fallback = None, None
     for a, q in q_by_alpha.items():
         for m in LOG_MARGINS:
-            t = np.maximum(q + m, floor) if side == "upper" else q - m
+            t = np.maximum(q + m, floor) if side == "upper" else np.minimum(q - m, ceil)
             n = int(((values > t) if side == "upper" else (values < t)).sum())
             if n <= allowed:
                 level = np.median(t) if side == "upper" else -np.median(t)
@@ -217,7 +223,8 @@ def calibrate(fr_split, flow_models, df_split, hour_q, n_months):
             choice["rate_low"][b] = choice["rate_low"]["day"]
             continue
         q = {a: flow_models[("rate_low", a)].predict(x) for a in ALPHAS["lower"]}
-        a, m, k = _pick(x[spec["col"]].to_numpy(), q, "lower", BUDGET["rate_low"] * SHARE[b] * n_months)
+        a, m, k = _pick(x[spec["col"]].to_numpy(), q, "lower", BUDGET["rate_low"] * SHARE[b] * n_months,
+                        ceil=CEIL["rate_low"])
         choice["rate_low"][b], n = (a, m), n + k
     fa["rate_low"] = n / n_months
     counts = night_counts(df_split)
@@ -448,15 +455,17 @@ def mahalanobis_score(buckets, fl):
 # ---------------------------------------------------------------- main
 
 def choose_flow_config(fr):
-    """Training window and season for the flow models: validation pinball of the duration p99."""
-    val = fr[(fr["split"] == "validation") & ~fr["known"]]
+    """Recency weights and season for the boosted flow model (slow flow): validation pinball of its low quantile."""
+    long_enough = fr["duration_s"] >= FLOW_IND["rate_low"]["min_dur"]
+    val = fr[(fr["split"] == "validation") & ~fr["known"] & long_enough]
     best, rows = None, []
     for win in FLOW_WINDOWS:
-        tr, _ = window(fr.set_index("start_ts", drop=False), win, ["train"])
-        tr = tr[~tr["known"]]
+        tr, w = window(fr[long_enough].set_index("start_ts", drop=False), win, ["train"])
+        keep = ~tr["known"].to_numpy()
+        tr, w = tr[keep], w[keep]
         for season in (False, True):
-            m = GBM(season=season, loss="quantile", quantile=0.99, min_samples_leaf=200).fit(tr, tr["log_dur"])
-            loss = float(mean_pinball_loss(val["log_dur"], m.predict(val), alpha=0.99))
+            m = GBM(season=season, loss="quantile", quantile=0.01, min_samples_leaf=200).fit(tr, tr["log_rate"], w)
+            loss = float(mean_pinball_loss(val["log_rate"], m.predict(val), alpha=0.01))
             rows.append({"window": win, "season": season, "pinball": loss})
             if best is None or loss < best["pinball"]:
                 best = rows[-1]

@@ -82,7 +82,9 @@ Retraining (every few months, from the repository root):
 
 ```sh
 R="uv run --with-requirements server/model/requirements.txt"
-$R server/model/data.py --refresh && $R server/model/train.py && $R server/model/anomaly.py
+uv run --with pypdf server/model/invoices.py <invoice dir>   # new utility meter readings (private CSV)
+$R server/model/data.py --refresh && $R server/model/meter.py
+$R server/model/train.py && $R server/model/anomaly.py
 $R server/model/publish.py --dry-run     # check size and guard
 $R server/model/publish.py               # retained config + thresholds.json to hc-data
 ```

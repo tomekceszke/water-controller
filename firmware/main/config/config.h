@@ -22,7 +22,7 @@
 /* TIER 1 (defaults and hard bounds; the limit is set from the app) */
 #define TIER1_LIMIT_DEFAULT_S           1200
 #define TIER1_LIMIT_MIN_S               60
-#define TIER1_LIMIT_MAX_S               3600    // not above Tier 0 (tier0.h, hard-coded 60 min)
+#define TIER1_LIMIT_MAX_S               2700    // strictly inside Tier 0 (tier0.h, hard-coded 60 min)
 #define TIER1_GAP_MS                    2000    // a pause longer than this ends a continuous flow
 #define VALVE_CLOSING_S                 15      // flow after a close for longer than this = valve failure alert
 
@@ -32,9 +32,8 @@
 #define PULSES_PER_LITER_MAX            700
 
 /* TIER 2 (all rules off by default) */
-#define TIER2_MAX_LITERS_LIMIT          10000
+// Tier 2 time and volume limits are capped from the Tier 1 limit (rules.h tier2_time_cap_s/tier2_volume_cap_l)
 #define TIER2_MAX_LPM_LIMIT             60
-#define TIER2_MAX_BURST_S               3600
 #define TIER2_MAX_LEAK_MIN              (24 * 60)
 #define TIER2_MAX_SNOOZE_MIN            (12 * 60)
 #define PROTECT_TASK_PRIORITY           5

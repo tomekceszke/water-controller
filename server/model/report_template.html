@@ -437,8 +437,8 @@ footer { color: var(--muted); font-size: 0.85rem; border-top: 1px solid var(--li
 
   const T = D.test.liters, TF = D.test.flows;
   const gain = 1 - T.best.poisson_deviance / T.b0.poisson_deviance;
-  $('fcText').textContent = `The model learns the weekly shape from the calendar (hour, weekday, Polish holidays, bridge days) and rescales it by how much water the house actually used over the previous ${D.best.level_days} days. On 2026 data its error is ${pct(gain)} lower than the plain average per hour of week, and the daily error drops from ${fmt(T.b0.daily_mae, 0)} to ${fmt(T.best.daily_mae, 0)} L.`;
-  table($('tModels'), ['Model on 2025 (validation)', 'Window', 'Level', 'Deviance'],
+  $('fcText').textContent = `The model learns the weekly shape from the calendar (hour, weekday, Polish holidays, bridge days), with the last two years weighted fully${D.best.level_days ? ` and a rescale by the previous ${D.best.level_days} days` : ''}. On 2026 data its error is ${pct(gain)} lower than the plain average per hour of week, and the daily error drops from ${fmt(T.b0.daily_mae, 0)} to ${fmt(T.best.daily_mae, 0)} L.`;
+  table($('tModels'), ['Model on 2025 (validation)', 'Weights', 'Level', 'Deviance'],
     D.models.slice(0, 7).map((m, i) => ({ hl: i === 0, cells: [m.model.replace(/ \(.*\)/, ''), m.window, m.level ? m.level + ' d' : 'off', fmt(m.dev, 2)] })),
     ['', '', 'n', 'n']);
   table($('tTest'), ['2026 (test)', 'Deviance', 'Day MAE', 'Mean pred / actual'], [
@@ -449,7 +449,7 @@ footer { color: var(--muted); font-size: 0.85rem; border-top: 1px solid var(--li
     ['Flows / hour: chosen', fmt(TF.best.poisson_deviance, 2), fmt(TF.best.daily_mae, 0), `${fmt(TF.best.mean_predicted, 1)} / ${fmt(TF.best.mean_actual, 1)}`],
   ], ['', 'n', 'n', 'n']);
   $('fcNotes').innerHTML = [
-    `Most of the gain is the level correction: use grows about 10 % a year and the plain average under-predicts 2026 by ${pct(1 - T.b0.mean_predicted / T.b0.mean_actual)}.`,
+    'Recent years count fully and older ones less (the household changed); every weighted variant beats the unweighted one. With legacy volumes reconciled to the utility meter there is no growth trend left, so validation drops the level correction.',
     'One hour of a household is mostly noise around the weekly shape. The model knows the shape, not whether someone showers at 17:00 or 17:40, so the error per hour barely moves.',
     'The season makes every candidate worse once the 2023 lawn watering is left out, as expected.',
     `Intervals hold: ${pct(D.test.coverage['0.9'], 1)} of 2026 hours fall under p90 and ${pct(D.test.coverage['0.99'], 1)} under p99.`,
@@ -549,7 +549,8 @@ footer { color: var(--muted); font-size: 0.85rem; border-top: 1px solid var(--li
   $('dataNotes').innerHTML = [
     `${D.flows.total.toLocaleString('en-US')} flows from ${D.flows.first} to ${D.flows.last}: ${D.flows.legacy.toLocaleString('en-US')} from the legacy firmware (via BigQuery), ${(D.flows.total - D.flows.legacy).toLocaleString('en-US')} from firmware 3.x.`,
     `Telemetry gaps longer than 24 h (${D.masked.unknown.toLocaleString('en-US')} hours, mostly 2022) are masked, never counted as zero use.`,
-    'The legacy firmware\'s counter wrap added about 80 L to some long flows. Any legacy flow averaging more than 26 L/min (firmware 3.x never does) loses the fewest wraps that bring it under: 443 flows, 37 m³. Durations and counts are not affected.',
+    'The legacy firmware\'s counter wrap (from July 2023) added about 80 L to some long flows. Any legacy flow averaging more than 26 L/min (firmware 3.x never does) loses the fewest wraps that bring it under. Durations and counts are not affected.',
+    'Checked against the utility meter (ratios only; readings stay private): legacy telemetry lost part of the water, most in 2024, and its volumes are scaled to the meter per billing interval. The meter shows flat use, and the 2026 intervals confirm 410 pulses per liter.',
     'Flows under 0.1 L are left out of counts and per-flow models: firmware 3.2.1+ does not publish them, while 27 % of legacy flows are that small.',
     'The hourly grid runs in UTC with Warsaw local-time features, so the change to and from summer time neither drops nor doubles an hour.',
   ].map((t) => `<li>${t}</li>`).join('');

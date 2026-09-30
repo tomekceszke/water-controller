@@ -43,6 +43,7 @@ typedef struct {
     int local_yday;                     // day of year, to tell one night from the next
     uint32_t pulses_per_liter;
     uint32_t max_dur_s;                 // cap on the duration limit (below the Tier 1 shut-off), 0 = none
+    uint32_t max_vol_l;                 // cap on the volume limit (rules.h tier2_volume_cap_l), 0 = none
 } learned_sample_t;
 
 typedef enum {
@@ -85,6 +86,13 @@ static inline uint32_t learned_dur_limit(const learned_config_t *c, int how, uin
 {
     uint32_t limit = c->dur_s[how];
     if (max_dur_s && max_dur_s < limit) limit = max_dur_s < LEARNED_DUR_MIN_S ? LEARNED_DUR_MIN_S : max_dur_s;
+    return limit;
+}
+
+static inline uint32_t learned_vol_limit(const learned_config_t *c, int how, uint32_t max_vol_l)
+{
+    uint32_t limit = c->vol_l[how];
+    if (max_vol_l && max_vol_l < limit) limit = max_vol_l < LEARNED_VOL_MIN_L ? LEARNED_VOL_MIN_L : max_vol_l;
     return limit;
 }
 

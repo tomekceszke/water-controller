@@ -10,7 +10,9 @@ Needs `PG_READ_PASS` in `server/secrets.env` (role `wc_read`, SELECT only) and a
 
 ```sh
 R="uv run --with-requirements server/model/requirements.txt"
+uv run --with pypdf server/model/invoices.py <invoice dir>   # private meter readings (optional, gitignored)
 $R server/model/data.py --refresh   # flows -> server/model/data/flows.parquet (cache, gitignored)
+$R server/model/meter.py            # telemetry vs meter; legacy volumes are reconciled when readings exist
 $R server/model/train.py            # hourly models: selection, test, final fit     (~1.5 min)
 $R server/model/anomaly.py          # thresholds: calibration, synthetic leaks, test (~1.5 min)
 $R server/model/report.py           # public: docs/USAGE_MODEL.md, docs/img/model-*.png, out/report_public.html
@@ -44,6 +46,8 @@ $R server/model/predict.py --flow "tue 03:00" 15m 90   # score one flow: start, 
 | `wc-model-score.service/.timer`, `requirements-score.txt` | the hourly check on hc-data, see [server/README.md](../README.md#usage-model-wc-model) |
 | `report.py`, `report_template.html` | the markdown report, charts and the interactive HTML page |
 | `known_events.csv` | **gitignored**: unusual periods kept out of "normal" training (lawn 2023, pool, hose) with exact dates; label the `unlabelled` rows |
+| `invoices.py` | main-meter readings from the utility's invoice PDFs into the gitignored `meter_readings.csv` (nothing else is read out) |
+| `meter.py` | telemetry against the meter per billing interval; `out/meter_check.json` with ratios only; calibration rule |
 | `known_events.example.csv` | its format, with month-level placeholder dates (used when the real file is missing) |
 
 ## Privacy
@@ -51,4 +55,5 @@ $R server/model/predict.py --flow "tue 03:00" 15m 90   # score one flow: start, 
 Water use per hour describes how a household lives. Everything committed is aggregated or coarsened: the typical
 week is a model average over years, single events and alarms are shown by month (alarms also night / day), and the
 example week in the charts is stitched from days of different weeks with weekday labels only. The raw flows
-(`data/`), the models and the exact-date reports (`out/`) and `known_events.csv` never go to git.
+(`data/`), the models and the exact-date reports (`out/`), `known_events.csv` and `meter_readings.csv` never go to git;
+the invoices stay outside the repository and only telemetry/meter ratios are published.

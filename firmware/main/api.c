@@ -49,6 +49,8 @@ static void add_settings(cJSON *obj, const settings_t *s)
     cJSON_AddNumberToObject(obj, "leak_notify_min", s->leak_notify_min);
     cJSON_AddBoolToObject(obj, "vacation", s->vacation);
     cJSON_AddNumberToObject(obj, "vacation_max_liters", s->vacation_max_liters);
+    cJSON_AddNumberToObject(obj, "tier2_max_s", tier2_time_cap_s(s->tier1_limit_s));
+    cJSON_AddNumberToObject(obj, "tier2_max_l", tier2_volume_cap_l(s->tier1_limit_s));
 }
 
 cJSON *api_status_json(void)

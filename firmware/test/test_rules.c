@@ -192,8 +192,20 @@ static void leak_counter_resets_after_quiet_minute(void)
     CHECK_EQ(s.active_minutes, 0);
 }
 
+static void tier2_caps_stay_inside_tier1(void)
+{
+    CHECK_EQ(tier2_time_cap_s(1200), 900);      // default 20 min: 15 min
+    CHECK_EQ(tier2_volume_cap_l(1200), 180);    // 12 L/min for 15 min
+    CHECK_EQ(tier2_time_cap_s(60), 45);         // shortest Tier 1
+    CHECK_EQ(tier2_volume_cap_l(60), 9);
+    CHECK_EQ(tier2_time_cap_s(2700), 2025);     // longest Tier 1 (45 min): still inside it and inside Tier 0
+    CHECK(tier2_time_cap_s(2700) < 2700);
+    CHECK_EQ(tier2_volume_cap_l(2700), 405);
+}
+
 int main(void)
 {
+    RUN(tier2_caps_stay_inside_tier1);
     RUN(all_rules_off_never_trigger);
     RUN(max_volume_closes_once);
     RUN(volume_limit_is_not_rounded_to_whole_liters);

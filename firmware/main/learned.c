@@ -124,11 +124,12 @@ learned_decision_t learned_update(learned_state_t *st, const learned_config_t *c
         st->dur_done = true;
         return (learned_decision_t) {LEARNED_DURATION, elapsed_s, dur_limit, (int8_t) hour};
     }
-    const uint64_t limit_pulses = (uint64_t) c->vol_l[st->how] * s->pulses_per_liter;
+    const uint32_t vol_limit = learned_vol_limit(c, st->how, s->max_vol_l);
+    const uint64_t limit_pulses = (uint64_t) vol_limit * s->pulses_per_liter;
     if (!st->vol_done && st->pulses > limit_pulses) {
         st->vol_done = true;
-        return (learned_decision_t) {LEARNED_VOLUME, (uint32_t) (st->pulses / s->pulses_per_liter),
-                                     c->vol_l[st->how], (int8_t) hour};
+        return (learned_decision_t) {LEARNED_VOLUME, (uint32_t) (st->pulses / s->pulses_per_liter), vol_limit,
+                                     (int8_t) hour};
     }
     return d;
 }

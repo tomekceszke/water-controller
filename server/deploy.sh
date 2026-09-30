@@ -5,8 +5,9 @@ HOST=${1:-root@192.168.11.16}
 cd "$(dirname "$0")"
 [ -f secrets.env ] || { echo "server/secrets.env missing (see secrets.env.example)" >&2; exit 1; }
 
-# Replace everything under /opt/wc-server except the venvs. The private model/known_events.csv (gitignored)
-# goes along; the local model cache and outputs do not (the server keeps its own in /var/lib/wc-model).
+# Replace everything under /opt/wc-server except the venvs. The private model/known_events.csv and
+# model/meter_readings.csv (gitignored)
+# go along; the local model cache and outputs do not (the server keeps its own in /var/lib/wc-model).
 ssh "$HOST" 'install -d -m 755 /opt/wc-server && install -d -m 700 /etc/wc-server &&
              find /opt/wc-server -mindepth 1 -maxdepth 1 ! -name venv ! -name model-venv -exec rm -rf {} +'
 COPYFILE_DISABLE=1 tar -czf - --exclude secrets.env --exclude migrate/out --exclude __pycache__ --exclude 'test_*' \

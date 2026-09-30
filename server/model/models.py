@@ -50,6 +50,10 @@ class HourMax:
         self.spread = spread
 
     def fit(self, X, y, w=None):
+        # A maximum takes no weights: only fully weighted rows (the recent period) count
+        if w is not None:
+            full = np.asarray(w) >= 1.0
+            X, y = X[full], np.asarray(y)[full]
         per_hour = pd.Series(np.asarray(y, dtype=float)).groupby(X["hour"].to_numpy()).max().reindex(range(24))
         per_hour = per_hour.fillna(per_hour.min())
         v = per_hour.to_numpy()

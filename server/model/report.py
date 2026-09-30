@@ -149,6 +149,8 @@ def main():
     IMG.mkdir(parents=True, exist_ok=True)
     mh = json.loads((OUT / "metrics_hourly.json").read_text())
     ma = json.loads((OUT / "metrics_anomaly.json").read_text())
+    meter_path = OUT / "meter_check.json"
+    ma["meter"] = json.loads(meter_path.read_text()) if meter_path.exists() else None
     th = json.loads((OUT / "thresholds.json").read_text())
     anomaly = joblib.load(OUT / "anomaly.joblib")
     flows, events = load_flows(), load_known_events()
@@ -325,6 +327,41 @@ def render(mh, ma, th, df, flows):
     w("- Flows under 0.1 L are left out of counts and per-flow models: firmware 3.2.1+ does not publish them, while "
       "27 % of legacy flows are that small.")
     w("")
+    mc = ma.get("meter")
+    if mc:
+        by = mc["by_year"]
+        w("### Checked against the utility meter")
+        w("")
+        w(f"The utility's main meter readings ({mc['intervals']} consecutive billing intervals, "
+          f"{mc['first'][:7]} to {mc['last'][:7]}, 1 m³ resolution) are the ground truth for volume. Only ratios are "
+          "shown here; the readings themselves stay private (`server/model/meter.py`).")
+        w("")
+        w("| Telemetry / meter | " + " | ".join(str(y) for y in by) + " |")
+        w("|---|" + "---|" * len(by))
+        for v, label in (("raw", "raw pulses"), ("imp", "import correction only"), ("clean", "full wrap fix (used)")):
+            w(f"| {label} | " + " | ".join(f"{by[y][v]:.2f}" for y in by) + " |")
+        w("")
+        w(f"- **The legacy counter-wrap bug began in July 2023** (first `suspect` flow 2023-07-03): before it, raw and "
+          f"corrected pulses are the same ({mc['pre_wrap_bug']['raw']:.2f} of the meter, the telemetry's usual loss); "
+          "after it, raw pulses run at 1.4-1.7x the meter. Legacy volumes up to mid-2023 are not affected by the bug.")
+        w("- **Legacy telemetry lost water**: with the full wrap fix it counted the pre-bug share again in 2023 and a "
+          "clear deficit in 2024. The import-only correction lands near 1.00 overall only because residual wraps offset "
+          "the lost flows.")
+        w(f"- **The calibration holds**: the 2026 intervals imply {mc['implied_k_2026']:.0f} pulses per liter against "
+          "the 410 in use.")
+        w("- **Use is flat**: the meter shows no growth since mid-2023, so the apparent growth of about 10 % a year in "
+          "the telemetry was lost data, not the household.")
+        rf = mc.get("reconcile_factor", {})
+        w(f"- **Reconciliation**: legacy flow volumes in each billing interval (until {rf.get('until', '2026-09-15')}) "
+          f"are scaled by meter / telemetry over that interval and its two neighbours (factor {rf.get('min', 0):.2f}-"
+          f"{rf.get('max', 0):.2f}, mean {rf.get('mean', 0):.2f}); durations and counts are untouched, firmware 3.x "
+          f"is used as measured. Per interval the ratio scatters by {100 * mc['interval_scatter_clean']:.0f} %, "
+          "about what 1 m³ in 12 m³ allows.")
+        fw = mc.get("fw3", {})
+        w("- **Ongoing calibration check**: once firmware 3.x has 36 m³ of complete meter intervals (about ±3 %), "
+          "`meter.py` recommends a new pulses-per-liter value if the implied one differs by more than 3 % "
+          f"({'enough data: ' + str(fw.get('implied_k')) if fw.get('enough') else 'not enough firmware 3.x intervals yet'}).")
+        w("")
     w("## Split")
     w("")
     w("Time-ordered, no shuffling (neighbouring hours are correlated, a random split leaks the answer):")
@@ -348,22 +385,26 @@ def render(mh, ma, th, df, flows):
     w("- **M1** Poisson GLM on hour-of-week dummies;")
     w("- **M2** gradient boosting (Poisson loss) on the calendar features.")
     w("")
-    w("Two hyperparameters on top: the start of the training window (2020-06, 2022-09, 2024-01, or all data with a "
-      "2-year half-life) and a **level correction** that scales the forecast by actual / predicted over the preceding "
-      "28 or 56 days. Use grows about 10 % a year (~10.5 m³/month in 2024, ~12.5 in 2026) and a calendar cannot know that.")
+    w("Two hyperparameters on top:")
+    w("- **recency weights**: the last 2 years count fully, each further year back by a decay (0, 0.25, 0.5 or 0.75), "
+      "nothing beyond 5 years; \"all data\" is the unweighted reference. The household changed (the kids grew up), "
+      "so older years describe it less well;")
+    w("- a **level correction** that scales the forecast by actual / predicted over the preceding 28 or 56 days.")
     w("")
     w("Best of each model on validation (liters per hour):")
     w("")
-    w("| Model | Window | Level | Poisson deviance | MAE |")
+    w("| Model | Weights | Level | Poisson deviance | MAE |")
     w("|---|---|---|---|---|")
     for r in by_model.itertuples():
         w(f"| {r.model} | {r.window} | {r.level_days or 'off'} | {r.poisson_deviance:.3f} | {r.mae:.2f} |")
     w("")
-    w("(Every model is shown with its best window and level correction; the B0 row in the test table below is the plain "
-      "view: all history, no correction.)")
+    w("(Every model is shown with its best weights and level correction; the B0 row in the test table below is the "
+      "plain view: all history, unweighted, no correction.)")
     w("")
-    w(f"Chosen: **{L['best']['model']}**, window from {L['best']['window']}, level over {L['best']['level_days']} days, "
-      f"no season. For flows per hour the same model wins ({F['best']['model']}, level {F['best']['level_days']} days).")
+    lvl = lambda d: f"level over {d} days" if d else "no level correction"  # noqa: E731
+    w(f"Chosen: **{L['best']['model']}**, weights {L['best']['window']}, {lvl(L['best']['level_days'])}, no season. "
+      f"For flows per hour: {F['best']['model']}, weights {F['best']['window']}, {lvl(F['best']['level_days'])}. "
+      "Every weighted variant beats the unweighted one on validation.")
     w("")
     w("Test (2026), refitted on train + validation:")
     w("")
@@ -383,13 +424,13 @@ def render(mh, ma, th, df, flows):
     w("")
     w(f"- Deviance is {100 * (1 - L['test']['best']['poisson_deviance'] / L['test']['b0']['poisson_deviance']):.0f} % lower "
       f"than the baseline and the daily error drops from {L['test']['b0']['daily_mae']:.0f} to "
-      f"{L['test']['best']['daily_mae']:.0f} L. Almost all of the gain is the level correction: B0 under-predicts 2026 by "
-      f"{100 * (1 - L['test']['b0']['mean_predicted'] / L['test']['b0']['mean_actual']):.0f} %.")
+      f"{L['test']['best']['daily_mae']:.0f} L. With volumes reconciled to the meter, validation no longer picks the "
+      "level correction: there is no trend left for it to follow.")
     w("- Hour-level MAE barely moves (it rewards the median, and the median hour is quiet). One hour of a household is "
       "mostly noise around a stable weekly shape; the model knows the shape, not whether someone showers at 17:00 or 17:40.")
     w("- The season does not help (every candidate got worse with it), as expected once the lawn is excluded.")
-    w("- Lags (same hour a week ago, last 24 h) give about the same as the level correction, but they only exist for "
-      "the next hour, not for \"Thursday 17:00\".")
+    w("- Lags (same hour a week ago, last 24 h) help a little more, but they only exist for the next hour, not for "
+      "\"Thursday 17:00\".")
     w(f"- Prediction intervals hold on test: {100 * q['0.9']['coverage']:.1f} % of hours fall under p90 and "
       f"{100 * q['0.99']['coverage']:.1f} % under p99.")
     w("")
@@ -535,8 +576,10 @@ def render(mh, ma, th, df, flows):
     w("- Almost all data comes from the legacy firmware; firmware 3.x adds two weeks. The per-flow rate and volume "
       "models inherit the legacy wrap uncertainty, and `max_lpm` / `flow_sample` (3.x only) are not used yet.")
     w("- No weather data: hot days probably explain part of the summer peaks.")
-    w("- Thresholds were set on 2025; the level correction follows drift in totals, not in the per-flow shapes.")
-    w("  Re-running the pipeline every few months keeps them current.")
+    w("- Legacy volumes are reconciled to the meter per billing interval: totals are right, but a lost flow stays "
+      "missing as an event (its water is spread over the flows that were counted).")
+    w("- Thresholds were set on 2025; re-running the pipeline every few months (with new meter readings) keeps them "
+      "current.")
     w("")
     w("## Next")
     w("")

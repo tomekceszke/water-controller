@@ -5,6 +5,7 @@
 #include "nvs.h"
 
 #include "config/config.h"
+#include "rules.h"
 #include "settings.h"
 
 static const char *TAG = "SETTINGS";
@@ -36,15 +37,17 @@ static void sanitize(settings_t *s)
 {
     s->tier1_limit_s = clamp(s->tier1_limit_s, TIER1_LIMIT_MIN_S, TIER1_LIMIT_MAX_S);
     s->pulses_per_liter = clamp(s->pulses_per_liter, PULSES_PER_LITER_MIN, PULSES_PER_LITER_MAX);
-    s->max_event_liters = clamp(s->max_event_liters, 0, TIER2_MAX_LITERS_LIMIT);
+    // Tier 2 inside Tier 1 (rules.h): 0 keeps a rule off, anything else is capped
+    const uint32_t max_s = tier2_time_cap_s(s->tier1_limit_s), max_l = tier2_volume_cap_l(s->tier1_limit_s);
+    s->max_event_liters = clamp(s->max_event_liters, 0, max_l);
     s->burst_lpm = clamp(s->burst_lpm, 1, TIER2_MAX_LPM_LIMIT);
-    s->burst_s = clamp(s->burst_s, 0, TIER2_MAX_BURST_S);
+    s->burst_s = clamp(s->burst_s, 0, max_s);
     s->night_start_h %= 24;
     s->night_end_h %= 24;
-    s->night_max_liters = clamp(s->night_max_liters, 0, TIER2_MAX_LITERS_LIMIT);
-    s->leak_notify_min = clamp(s->leak_notify_min, 0, TIER2_MAX_LEAK_MIN);
+    s->night_max_liters = clamp(s->night_max_liters, 0, max_l);
+    s->leak_notify_min = clamp(s->leak_notify_min, 0, TIER2_MAX_LEAK_MIN);     // intermittent use: not bound by Tier 1
     s->vacation = s->vacation ? true : false;
-    s->vacation_max_liters = clamp(s->vacation_max_liters, 1, TIER2_MAX_LITERS_LIMIT);
+    s->vacation_max_liters = clamp(s->vacation_max_liters, 1, max_l);
 }
 
 static void apply(const settings_t *s)

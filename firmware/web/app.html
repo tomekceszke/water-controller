@@ -135,7 +135,7 @@
     <h2 class="sec">Shut-off limit</h2>
     <ul class="list">
       <li>
-        <div class="k">Continuous flow<small>Always on, works without Wi-Fi, up to 1 hour</small></div>
+        <div class="k">Continuous flow<small>Always on, works without Wi-Fi, up to 45 min</small></div>
         <div class="stepper">
           <button type="button" data-step="-1" aria-label="Shorter">−</button>
           <output id="limitOut">20 min</output>
@@ -143,7 +143,7 @@
         </div>
       </li>
     </ul>
-    <p class="note">The valve closes when water runs without a break for longer than this. Independently of this setting, it always closes after 1 hour of continuous flow; turn the water back on to continue.</p>
+    <p class="note">The valve closes when water runs without a break for longer than this. Independently of this setting, it always closes after 1 hour of continuous flow; turn the water back on to continue. Smart rules and learned limits always act before this limit.</p>
 
     <h2 class="sec">Smart rules</h2>
     <ul class="list rules" id="rules">
@@ -163,6 +163,7 @@
         <p class="rule-off">Turn on when nobody is home. Stays on while rules are paused.</p>
         <p class="rule-on">Shut off after <input type="number" min="1" max="10000" data-rule="vacation_max_liters" aria-label="Liters when away"> liters</p></li>
     </ul>
+    <p class="note" id="capNote"></p>
     <p class="note" id="snoozeNote">Watering the garden? Pause the smart rules for a while. The shut-off limit stays on.</p>
     <div class="chips inline">
       <button class="chip" type="button" data-snooze="30">30 min</button>
@@ -216,7 +217,7 @@ let valveBusy = false;
 
 const fmtL = v => v < 10 ? v.toFixed(1) : Math.round(v).toLocaleString("en");
 const fmtMin = s => s % 3600 === 0 ? `${s / 3600} h` : `${Math.round(s / 60)} min`;
-const defaults = {max_event_liters: 300, burst_lpm: 40, burst_s: 60, night_max_liters: 20, leak_notify_min: 120, vacation_max_liters: 5};
+const defaults = {max_event_liters: 150, burst_lpm: 40, burst_s: 60, night_max_liters: 20, leak_notify_min: 120, vacation_max_liters: 5};
 const reasons = {tier0: "the 1-hour safety limit", tier1: "the shut-off limit", tier2: "a smart rule", user: "you", admin: "a script", restore: "restart"};
 const ruleNames = {max_volume: "too much in one go", burst: "burst pipe", night: "night use", vacation: "away from home", leak: "dripping leak",
   learned_duration: "unusually long flow", learned_volume: "unusually big flow", night_flows: "many flows at night"};
@@ -321,6 +322,17 @@ function renderSettings(s) {
   } else {
     $("learnedText").textContent = "No learned limits yet. They arrive from hc-data.";
     $("learnedNote").hidden = true;
+  }
+  // Tier 2 sits inside Tier 1: the firmware caps times and volumes, the inputs show the same bounds
+  const capS = st.tier2_max_s, capL = st.tier2_max_l;
+  if (capS && capL) {
+    for (const k of ["max_event_liters", "night_max_liters", "vacation_max_liters"]) {
+      const el = document.querySelector(`[data-rule="${k}"]`);
+      if (el) el.max = capL;
+    }
+    const b = document.querySelector('[data-rule="burst_s"]');
+    if (b) b.max = capS;
+    $("capNote").textContent = `Rules act inside the shut-off limit: at most ${capL} L or ${fmtMin(capS)} (${fmtMin(st.tier1_limit_s)} limit).`;
   }
   $("nightHours").textContent = `${st.night_start_h}:00 and ${st.night_end_h}:00`;
   const snooze = s.tier2.snooze_left_s;
@@ -466,7 +478,7 @@ async function snooze(minutes) {
 $("pauseChip").addEventListener("click", () => state && snooze(state.tier2.snooze_left_s > 0 ? 0 : 30));
 $("awayChip").addEventListener("click", () => state && saveSettings({vacation: !state.settings.vacation}));
 
-const limitSteps = [60, 120, 300, 600, 900, 1200, 1800, 2700, 3600];
+const limitSteps = [60, 120, 300, 600, 900, 1200, 1800, 2700];     // firmware TIER1_LIMIT_MAX_S: inside Tier 0
 document.querySelectorAll("[data-step]").forEach(b => b.addEventListener("click", () => {
   const cur = state.settings.tier1_limit_s;
   const dir = Number(b.dataset.step);

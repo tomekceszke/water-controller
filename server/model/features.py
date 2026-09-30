@@ -41,8 +41,58 @@ FEATURES_BASE = ["hour", "dow", "holiday", "bridge"]
 FEATURES_SEASON = ["doy_sin", "doy_cos"]
 
 
-def clean_flows(flows):
-    """Copy with `liters` wrap-fixed for legacy rows and a `wrap_fixed` flag (volume still uncertain there)."""
+# Main water meter readings from the utility's invoices (invoices.py; private, gitignored). Legacy telemetry lost
+# some flows (about 16 % of the volume in 2024, 3 % in 2025 against the meter), which read as growing use; its
+# volumes are scaled per billing interval to the meter. Firmware 3.x (from the migration on) is left as measured.
+READINGS = HERE / "meter_readings.csv"
+RECONCILE_END = pd.Timestamp("2026-09-15 21:00", tz="UTC")
+RECONCILE_CLIP = (0.7, 1.4)
+_readings_cache = {}
+
+
+def load_readings(path=None):
+    """Main-meter intervals as a DataFrame (start, end: UTC at local midnight; liters), or None without the file."""
+    path = pathlib.Path(path or READINGS)
+    if not path.exists():
+        return None
+    if path not in _readings_cache:
+        r = pd.read_csv(path)
+        _readings_cache[path] = pd.DataFrame({
+            "start": pd.to_datetime(r["start_local"]).dt.tz_localize(TZ).dt.tz_convert("UTC"),
+            "end": pd.to_datetime(r["end_local"]).dt.tz_localize(TZ).dt.tz_convert("UTC"),
+            "liters": (r["end_m3"] - r["start_m3"]) * 1000.0,
+        }).sort_values("start").reset_index(drop=True)
+    return _readings_cache[path]
+
+
+def reconcile_factors(flows, readings):
+    """Per meter interval: telemetry liters, meter liters, raw ratio and the factor applied (meter / telemetry over
+    the interval and its two neighbours: one interval alone carries the meter's 1 m³ resolution, about ±8 %)."""
+    r = readings.copy()
+    starts = flows["start_ts"]
+    r["telemetry"] = [flows.loc[(starts >= a) & (starts < b), "liters"].sum() for a, b in zip(r["start"], r["end"])]
+    r["ratio"] = r["liters"] / r["telemetry"].where(r["telemetry"] > 0)
+    meter3 = r["liters"].rolling(3, center=True, min_periods=1).sum()
+    tele3 = r["telemetry"].rolling(3, center=True, min_periods=1).sum()
+    r["factor"] = (meter3 / tele3.where(tele3 > 0)).clip(*RECONCILE_CLIP).fillna(1.0)
+    return r
+
+
+def reconcile(f, readings):
+    """Scales legacy flow volumes (before RECONCILE_END) inside meter intervals by the interval's factor."""
+    factors = reconcile_factors(f, readings)
+    legacy = f["device"].eq("bigquery") & (f["start_ts"] < RECONCILE_END)
+    f["meter_factor"] = 1.0
+    for a, b, k in zip(factors["start"], factors["end"], factors["factor"]):
+        sel = legacy & (f["start_ts"] >= a) & (f["start_ts"] < b)
+        f.loc[sel, "meter_factor"] = k
+    f["liters"] = f["liters"] * f["meter_factor"]
+    return f
+
+
+def clean_flows(flows, readings="auto"):
+    """Copy with `liters` wrap-fixed for legacy rows and a `wrap_fixed` flag (volume still uncertain there), then
+    reconciled with the utility meter where readings exist ("auto": server/model/meter_readings.csv if present)."""
     f = flows.copy()
     minutes = ((f["stop_ts"] - f["start_ts"]).dt.total_seconds().clip(lower=1)) / 60
     legacy = f["device"].eq("bigquery") if "device" in f else pd.Series(False, index=f.index)
@@ -51,7 +101,24 @@ def clean_flows(flows):
     wraps = np.minimum(wraps, np.floor(f["liters"] / WRAP_L))
     f.loc[over, "liters"] = f.loc[over, "liters"] - wraps[over] * WRAP_L
     f["wrap_fixed"] = over
+    if isinstance(readings, str) and readings == "auto":
+        readings = load_readings()
+    if readings is not None and "device" in f and len(f):
+        f = reconcile(f, readings)
     return f
+
+
+YEAR = pd.Timedelta(days=365.25)
+
+
+def age_weights(ts, end, decay, full_years=2, max_years=5):
+    """Recency weights: 1 for the last `full_years` before `end`, then `decay` per further year, 0 beyond
+    `max_years` (None: no cut-off). The household changed (the kids grew up), so recent years describe it best."""
+    age = np.asarray((end - pd.DatetimeIndex(ts)) / YEAR, dtype=float)
+    w = np.where(age <= full_years, 1.0, float(decay) ** np.ceil(np.maximum(age - full_years, 1e-9)))
+    if max_years is not None:
+        w = np.where(age > max_years, 0.0, w)
+    return w
 
 
 def load_known_events(path=None):

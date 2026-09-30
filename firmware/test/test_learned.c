@@ -191,6 +191,26 @@ static void duration_limit_stays_below_tier1(void)
     CHECK_EQ(learned_dur_limit(&c, 0, 0), 1500);                // no cap
 }
 
+static void volume_limit_stays_below_tier1(void)
+{
+    learned_config_t c = config(3600, 400, 10);     // learned: 400 L
+    learned_state_t s;
+    learned_init(&s);
+    int64_t t = 0;
+    learned_decision_t d = {0};
+    for (int i = 0; i < 3600 && d.hit == LEARNED_NONE; i++) {   // 20 L/min, volume cap 180 L (Tier 1 at 20 min)
+        t += 1000;
+        learned_sample_t smp = {.now_ms = t, .pulses = 20 * K / 60, .flowing = true, .local_dow = MON,
+                                .local_hour = 11, .local_yday = 10, .pulses_per_liter = K, .max_vol_l = 180};
+        d = learned_update(&s, &c, &smp);
+    }
+    CHECK_EQ(d.hit, LEARNED_VOLUME);
+    CHECK_EQ(d.limit, 180);
+    CHECK(t <= 545000);                                         // 180 L at 20 L/min: 9 min
+    CHECK_EQ(learned_vol_limit(&c, 0, 2), LEARNED_VOL_MIN_L);
+    CHECK_EQ(learned_vol_limit(&c, 0, 0), 400);
+}
+
 static void nothing_without_clock_or_config(void)
 {
     learned_config_t c = config(60, 5, 3);
@@ -216,6 +236,7 @@ int main(void)
     RUN(night_flows_count_and_reset);
     RUN(tiny_flows_do_not_count_at_night);
     RUN(duration_limit_stays_below_tier1);
+    RUN(volume_limit_stays_below_tier1);
     RUN(nothing_without_clock_or_config);
     return report();
 }

@@ -59,7 +59,7 @@ Severity: **C** = protection can fail or be defeated, **H** = wrong data or secu
 | 3 | C | `hw.c:reset_gpio()` | Every boot drives the valve open | A reboot after a cutoff reopens the water |
 | 4 | C | `wifi.c` event handler | Reboots the device after any reconnect | Combined with #3, a short WiFi outage cancels a cutoff |
 | 5 | H | `pcnt.c` | Durations use `time(NULL)` | A late NTP sync jumps the clock and can trigger a false cutoff (or hide a real one) |
-| 6 | H | `pcnt.c` | PCNT unit wraps at `INT16_MAX` (~68.7 L at 477 pulses/L); `abs(delta)` then adds ~32k pulses | Long flows are over-counted; history in BigQuery is affected |
+| 6 | H | `pcnt.c` | PCNT unit wraps at `INT16_MAX` (~68.7 L at 477 pulses/L); `abs(delta)` then adds ~32k pulses | Long flows are over-counted; history in BigQuery is affected from July 2023 on (first implausible flow 2023-07-03; the utility meter confirms earlier volumes are clean) |
 | 7 | H | `wifi.c` event handler | `vTaskDelay` up to 60 s inside the default event loop | Blocks all other system events during reconnect (same bug in gate/heating) |
 | 8 | H | `web.c` | `/api/status`, `/is-valve-closed`, `/hw-status`, `/test-send-metrics` unauthenticated; `Access-Control-Allow-Origin: *` | Anyone on the LAN (or a malicious web page) can read state; test endpoint pushes fake rows to BigQuery |
 | 9 | H | `web.c:close_valve_handler()` | VLA `char buf[length]` sized from `Content-Length`, `sscanf` on a non-terminated buffer | Stack overflow / garbage read from a crafted request (authenticated) |

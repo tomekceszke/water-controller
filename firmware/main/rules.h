@@ -62,6 +62,23 @@ typedef struct {
     int64_t snooze_until_ms;        // rules except vacation are muted until then
 } rules_state_t;
 
+/*
+ * Tier hierarchy: Tier 0 (60 min, hard-coded) > Tier 1 (set in the app) > Tier 2. A Tier 2 limit that is only reached
+ * after Tier 1 has shut the water off means nothing, so every Tier 2 time and volume limit (rules and learned limits)
+ * is capped from the Tier 1 limit: time at 3/4 of it, volume at what a typical stream delivers in that time.
+ */
+#define TIER2_TYPICAL_LPM 12
+
+static inline uint32_t tier2_time_cap_s(uint32_t tier1_limit_s)
+{
+    return tier1_limit_s * 3 / 4;
+}
+
+static inline uint32_t tier2_volume_cap_l(uint32_t tier1_limit_s)
+{
+    return TIER2_TYPICAL_LPM * tier2_time_cap_s(tier1_limit_s) / 60;
+}
+
 void rules_init(rules_state_t *state);
 
 rules_decision_t rules_update(rules_state_t *state, const rules_config_t *config, const rules_sample_t *sample);

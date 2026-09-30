@@ -9,8 +9,9 @@ import pandas as pd
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 from anomaly import _pick, inject, night_counts  # noqa: E402
-from features import (SPLITS, TZ, WRAP_L, calendar, clean_flows, hourly_frame, spread_hourly,  # noqa: E402
-                      split_of, unknown_hours)
+from features import (SPLITS, TZ, WRAP_L, age_weights, calendar, clean_flows, hourly_frame, reconcile_factors,  # noqa: E402
+                      spread_hourly, split_of, unknown_hours)
+from invoices import parse_text  # noqa: E402
 from predict import parse_duration, parse_when  # noqa: E402
 from publish import build_config, guard  # noqa: E402
 from score import hour_alarms  # noqa: E402
@@ -63,16 +64,63 @@ class HourlyTest(unittest.TestCase):
 class CleanTest(unittest.TestCase):
     def test_legacy_wrap_removed_when_rate_impossible(self):
         f = flows(("2025-05-06 10:00", "2025-05-06 10:02", 100), device="bigquery")
-        c = clean_flows(f)
+        c = clean_flows(f, readings=None)
         self.assertTrue(c["wrap_fixed"].iloc[0])
         self.assertAlmostEqual(c["liters"].iloc[0], 100 - WRAP_L)
 
     def test_plausible_and_new_firmware_flows_untouched(self):
-        legacy = clean_flows(flows(("2025-05-06 10:00", "2025-05-06 10:20", 300), device="bigquery"))
-        new = clean_flows(flows(("2025-05-06 10:00", "2025-05-06 10:02", 100)))
+        legacy = clean_flows(flows(("2025-05-06 10:00", "2025-05-06 10:20", 300), device="bigquery"), readings=None)
+        new = clean_flows(flows(("2025-05-06 10:00", "2025-05-06 10:02", 100)), readings=None)
         self.assertEqual(legacy["liters"].iloc[0], 300)
         self.assertEqual(new["liters"].iloc[0], 100)
         self.assertFalse(legacy["wrap_fixed"].iloc[0] or new["wrap_fixed"].iloc[0])
+
+
+class MeterTest(unittest.TestCase):
+    def readings(self):
+        return pd.DataFrame({"start": [local("2025-01-01"), local("2025-02-01"), local("2025-03-01")],
+                             "end": [local("2025-02-01"), local("2025-03-01"), local("2025-04-01")],
+                             "liters": [1000.0, 1000.0, 1000.0]})
+
+    def test_legacy_volumes_scaled_to_the_meter(self):
+        f = flows(("2025-01-10 10:00", "2025-01-10 11:00", 800), ("2025-02-10 10:00", "2025-02-10 11:00", 800),
+                  ("2025-03-10 10:00", "2025-03-10 11:00", 800), device="bigquery")
+        c = clean_flows(f, readings=self.readings())
+        self.assertTrue(np.allclose(c["liters"], 1000))           # 0.8 m³ counted, 1 m³ on the meter
+        self.assertTrue(np.allclose(c["meter_factor"], 1.25))
+
+    def test_factor_is_smoothed_over_neighbours(self):
+        f = flows(("2025-01-10 10:00", "2025-01-10 11:00", 1000), ("2025-02-10 10:00", "2025-02-10 11:00", 800),
+                  ("2025-03-10 10:00", "2025-03-10 11:00", 1000), device="bigquery")
+        k = reconcile_factors(f, self.readings())
+        self.assertAlmostEqual(k["ratio"][1], 1.25)
+        self.assertAlmostEqual(k["factor"][1], 3000 / 2800)
+
+    def test_new_firmware_and_unmetered_flows_untouched(self):
+        new = clean_flows(flows(("2025-01-10 10:00", "2025-01-10 10:10", 8000)), readings=self.readings())
+        old = clean_flows(flows(("2024-06-10 10:00", "2024-06-10 10:10", 50), device="bigquery"),
+                          readings=self.readings())
+        self.assertEqual((new["liters"].iloc[0], old["liters"].iloc[0]), (8000, 50))
+
+    def test_invoice_rows_parsed_without_anything_else(self):
+        # Made-up invoice text in the three wordings seen (and a sub-meter row that must be skipped)
+        text = ("Faktura nr X Jan Kowalski, ul. Przykładowa 1 Odczyt radiowy 11111111   - odcz. poprz.: 2031-01-02 "
+                "  100.00 m3, bież.: 2031-02-01   111.00 m3, zużycie: 11.00 Sprzedaż wody 11 m3 99,99 "
+                "Odczyt z licznika 22222 (podlicznik)  - odcz. poprz.: 2031-01-02   7.00 m3, bież.: 2031-02-01   8.00 m3 "
+                "Odczyt radiowy 11111111    Odcz.poprz: 2030-11-03     80.0m3  Bieżący: 2030-12-02    90.0m3 "
+                "odcz. z licznika nadrzędnego nr 11111111: poprz. 2031-02-01 111.00 m3, bież. 2031-03-03 120.00 m3")
+        self.assertEqual(parse_text(text), {("2031-01-02", 100.0, "2031-02-01", 111.0),
+                                            ("2030-11-03", 80.0, "2030-12-02", 90.0),
+                                            ("2031-02-01", 111.0, "2031-03-03", 120.0)})
+
+
+class WeightTest(unittest.TestCase):
+    def test_age_bands(self):
+        end = local("2026-09-29")
+        ts = pd.DatetimeIndex([end - pd.Timedelta(days=d) for d in (10, 700, 800, 1200, 1500, 1900, 2100)])
+        self.assertEqual(list(age_weights(ts, end, 0.5)), [1, 1, 0.5, 0.25, 0.125, 0, 0])
+        self.assertEqual(list(age_weights(ts, end, 0.0)), [1, 1, 0, 0, 0, 0, 0])         # last 2 years only
+        self.assertEqual(list(age_weights(ts, end, 1.0, max_years=None)), [1] * 7)      # unweighted reference
 
 
 class SplitTest(unittest.TestCase):
@@ -99,7 +147,7 @@ class LevelTest(unittest.TestCase):
 
 class AnomalyTest(unittest.TestCase):
     def test_injected_leak_merges_with_adjacent_real_flow(self):
-        real = clean_flows(flows(("2025-05-06 03:10", "2025-05-06 03:15", 5)))
+        real = clean_flows(flows(("2025-05-06 03:10", "2025-05-06 03:15", 5)), readings=None)
         s = local("2025-05-06 03:15:03")  # 3 s after the real flow: the firmware sees one flow
         merged, absorbed = inject(real, [(s, s + pd.Timedelta(minutes=15), 90.0)])
         self.assertEqual(len(merged), 1)
@@ -108,7 +156,7 @@ class AnomalyTest(unittest.TestCase):
         self.assertEqual(merged[0]["stop"] - merged[0]["start"], pd.Timedelta(minutes=20, seconds=3))
 
     def test_separate_flow_stays_separate(self):
-        real = clean_flows(flows(("2025-05-06 03:10", "2025-05-06 03:15", 5)))
+        real = clean_flows(flows(("2025-05-06 03:10", "2025-05-06 03:15", 5)), readings=None)
         s = local("2025-05-06 03:30")
         merged, absorbed = inject(real, [(s, s + pd.Timedelta(minutes=15), 90.0)])
         self.assertEqual((len(merged), absorbed, merged[0]["liters"]), (1, [], 90.0))

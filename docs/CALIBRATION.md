@@ -80,3 +80,25 @@ Consequences:
 
 Cross-check that fell out of this: the Grohe Rapid SL full flush is 3620 pulses = 8.8 L at 410, so the cistern is set
 to 9 L. The earlier "6 L would mean ~600 pulses/L" hypothesis is dead.
+
+## Checked against the utility meter (2026-09-30)
+
+The water utility bills from a radio-read main meter, about once a month. Its readings on the invoices (42
+consecutive intervals from 2023-03 to 2026-09, 1 m³ resolution) are a long-term reference for the whole flow mix,
+which a bucket test cannot give. The readings stay private (`server/model/invoices.py` writes the gitignored
+`server/model/meter_readings.csv`); only ratios are published. A garden sub-meter on the invoices sits behind the
+flow meter and is ignored.
+
+`server/model/meter.py` compares every billing interval:
+
+- **410 pulses/L holds**: the 2026 intervals imply 410.
+- **The legacy counter-wrap bug (INVENTORY #6) began in July 2023**: before, raw pulses equal the corrected ones;
+  after, raw pulses run at 1.4-1.7x the meter.
+- **Legacy telemetry lost part of the water** (flows it failed to send), most in 2024. Legacy volumes are therefore
+  scaled to the meter per interval before modelling (`features.clean_flows`); see docs/USAGE_MODEL.md.
+- One interval carries ±1 m³ in about 12 m³ (±8 %), so the check needs several months. Rule: once firmware 3.x has
+  36 m³ of complete intervals (about ±3 %), `meter.py` recommends a new factor if the implied one differs by more than
+  3 %; set it from the app (Settings, Flow meter).
+
+With new invoices: `uv run --with pypdf server/model/invoices.py <dir>`, then `server/model/meter.py`.
+
