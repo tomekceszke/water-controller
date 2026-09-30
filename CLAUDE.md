@@ -20,7 +20,7 @@ The plan is in `~/.claude/plans/cele-odnosnie-tego-projektu-rosy-moler.md`. Stag
 - [x] 5 migration (production 2026-09-15 23:02)
 - [x] 6 docs/portfolio (README, LICENSE, CI)
 - [~] 7 anomaly model (offline model + report 2026-09-29: `server/model/`, `docs/USAGE_MODEL.md`; learned limits in firmware 3.4.0 (not on hardware yet), hourly check deployed on hc-data)
-- [ ] 8 GCP shutdown
+- [x] 8 GCP shutdown (resources deleted 2026-09-21; sources and keys archived in `legacy/gcp`, `legacy/certs`)
 
 ## Protection tiers (design rule for every change)
 
@@ -179,10 +179,8 @@ tools/dev_proxy.py <device-ip> --port 8765   # serves firmware/web/app.html rend
 - **hc-data**: `192.168.11.16`, Mosquitto + PostgreSQL shared with `../heating-controller`.
   - Water part: `server/` (DB `water`, `wc-ingest`, backups); see `server/README.md`.
   - Mosquitto passwd/acl are assembled from `/etc/mosquitto/{passwd.d,acl.d}` fragments by both projects' `install.sh`.
-- **GCP (legacy, to be shut down after cutover)**:
-  - project `water-controller-351109`: Cloud Function `send-metrics`, dataset `flow_ds.flow_raw`;
-  - older history in `vps1-ceszke-com.water_flow_ds.water_flow`;
-  - local sources in `gcp/` (gitignored).
+- **GCP** (history): the legacy firmware posted to Cloud Functions + BigQuery in project `water-controller-351109`;
+  deleted 2026-09-21 after the history moved to hc-data. Sources and keys are archived in `legacy/gcp`, `legacy/certs`.
 
 ## Sibling projects
 
@@ -192,7 +190,7 @@ tools/dev_proxy.py <device-ip> --port 8765   # serves firmware/web/app.html rend
 
 ## Rules
 
-- **Never** commit: `credentials.h`, `certs/*`, `*.pem`, `*.p12`, `gcp/`, `legacy/`, `*.private.env.json`, `secrets.env`,
+- **Never** commit: `credentials.h`, `firmware/certs/*`, `*.pem`, `*.p12`, `legacy/`, `*.private.env.json`, `secrets.env`,
   `server/model/known_events.csv`, `server/model/meter_readings.csv`.
 - The utility's invoices (kept outside the repo) and the readings taken from them are private: never commit or publish
   readings, amounts, names, addresses, account or meter numbers; docs show ratios only (`server/model/meter.py`).
@@ -259,5 +257,5 @@ tools/dev_proxy.py <device-ip> --port 8765   # serves firmware/web/app.html rend
     reset the stored settings).
   - Legacy volumes of long flows can carry an undetected counter wrap (+80 L): `features.clean_flows` removes wraps
     from legacy flows averaging over 26 L/min; durations and counts are unaffected.
-- [ ] Stage 8 GCP shutdown (not before 2026-09-29).
+- [x] Stage 8 GCP shutdown: resources deleted 2026-09-21; `gcp/` and the old `certs/` moved to `legacy/` (2026-09-30).
 - [ ] Sibling projects: CI everywhere (gate: none, heating: not on GitHub yet), move them to home-idf.

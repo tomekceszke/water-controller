@@ -10,7 +10,6 @@
 .worktrees/
 
 # Secrets (never commit)
-/certs/*
 credentials.h
 *.pem
 *.p12
@@ -19,8 +18,6 @@ credentials.h
 secrets.env
 upload.sh
 
-# Legacy cloud sources (kept locally until GCP shutdown)
-/gcp
 
 # Build output
 build/
