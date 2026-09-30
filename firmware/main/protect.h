@@ -38,6 +38,7 @@ typedef struct {
     bool notify;                    // owner switch (Settings)
     bool flowing;
     uint32_t limit_s, limit_l;      // for the current flow (its start hour), else for the hour now; 0 = none
+    uint32_t night_s, night_l;      // the coming night, 1:00-5:59: loosest of its hours; 0 = none
     uint32_t night_flows, night_limit;
 } protect_learned_t;
 

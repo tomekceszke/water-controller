@@ -109,6 +109,8 @@ cJSON *api_status_json(void)
     cJSON_AddBoolToObject(learned, "notify", l.notify);
     cJSON_AddNumberToObject(learned, "limit_s", l.limit_s);
     cJSON_AddNumberToObject(learned, "limit_l", l.limit_l);
+    cJSON_AddNumberToObject(learned, "night_s", l.night_s);
+    cJSON_AddNumberToObject(learned, "night_l", l.night_l);
     cJSON_AddNumberToObject(learned, "night_flows", l.night_flows);
     cJSON_AddNumberToObject(learned, "night_limit", l.night_limit);
 

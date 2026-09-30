@@ -313,9 +313,10 @@ function renderSettings(s) {
   $("learnedItem").classList.toggle("on", l.active && l.notify);
   if (l.active) {
     const age = learnedAge(l.generated);
-    const night = l.night_flows ? ` Tonight so far: ${l.night_flows} of ${l.night_limit} flows.` : "";
+    const atNight = l.night_s ? ` At night (1:00-6:00): over ${minsUp(l.night_s)} or ${l.night_l} L.` : "";
+    const tonight = l.night_flows && new Date().getHours() < 6 ? ` Tonight so far: ${l.night_flows} flows, usually at most ${l.night_limit}.` : "";
     $("learnedText").textContent = `Notifies when a flow runs longer or uses more than usual for its hour. Never shuts off. ` +
-      `Now: one flow over ${minsUp(l.limit_s)} or ${l.limit_l} L; at night more than ${l.night_limit} flows.${night}`;
+      `Now: over ${minsUp(l.limit_s)} or ${l.limit_l} L.${atNight}${tonight}`;
     $("learnedNote").hidden = false;
     $("learnedNote").textContent = `Learned from this home's history on hc-data, ${age.text}.` +
       (age.days > 90 ? " These limits are old: check that hc-data still updates them." : "");

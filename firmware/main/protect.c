@@ -283,6 +283,16 @@ void protect_learned_status(protect_learned_t *out)
         out->limit_s = learned_dur_limit(&s_learned, how, tier2_time_cap_s(settings_tier1_limit_s()));
         out->limit_l = learned_vol_limit(&s_learned, how, tier2_volume_cap_l(settings_tier1_limit_s()));
     }
+    // The coming night (tonight before 6:00, else the next one) without its first hour, which carries the evening
+    if (s_learned.valid && s_now_how >= 0) {
+        const int day = s_now_how % 24 < LEARNED_NIGHT_END_H ? s_now_how / 24 : (s_now_how / 24 + 1) % 7;
+        for (int h = 1; h < LEARNED_NIGHT_END_H; h++) {
+            const uint32_t ds = learned_dur_limit(&s_learned, day * 24 + h, tier2_time_cap_s(settings_tier1_limit_s()));
+            const uint32_t dl = learned_vol_limit(&s_learned, day * 24 + h, tier2_volume_cap_l(settings_tier1_limit_s()));
+            if (ds > out->night_s) out->night_s = ds;
+            if (dl > out->night_l) out->night_l = dl;
+        }
+    }
     out->flowing = s_learned_state.flowing;
     out->night_limit = s_learned.valid ? s_learned.night_flows : 0;
     out->night_flows = s_learned_state.night_yday == s_hour_yday ? s_learned_state.night_flows : 0;
