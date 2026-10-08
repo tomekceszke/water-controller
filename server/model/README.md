@@ -11,6 +11,7 @@ Needs `PG_READ_PASS` in `server/secrets.env` (role `wc_read`, SELECT only) and a
 ```sh
 R="uv run --with-requirements server/model/requirements.txt"
 uv run --with pypdf server/model/invoices.py <invoice dir>   # private meter readings (optional, gitignored)
+uv run server/model/invoices.py --sql | ssh root@192.168.11.16 "su postgres -c 'psql -d meters -v ON_ERROR_STOP=1'"   # them into hc-data
 $R server/model/data.py --refresh   # flows -> server/model/data/flows.parquet (cache, gitignored)
 $R server/model/meter.py            # telemetry vs meter; legacy volumes are reconciled when readings exist
 $R server/model/train.py            # hourly models: selection, test, final fit     (~1.5 min)
@@ -46,7 +47,7 @@ $R server/model/predict.py --flow "tue 03:00" 15m 90   # score one flow: start, 
 | `wc-model-score.service/.timer`, `requirements-score.txt` | the hourly check on hc-data, see [server/README.md](../README.md#usage-model-wc-model) |
 | `report.py`, `report_template.html` | the markdown report, charts and the interactive HTML page |
 | `known_events.csv` | **gitignored**: unusual periods kept out of "normal" training (lawn 2023, pool, hose) with exact dates; label the `unlabelled` rows |
-| `invoices.py` | main-meter readings from the utility's invoice PDFs into the gitignored `meter_readings.csv` (nothing else is read out) |
+| `invoices.py` | main-meter readings from the utility's invoice PDFs into the gitignored `meter_readings.csv` (nothing else is read out); `--sql` prints them as `billing` readings for hc-data `meters` |
 | `meter.py` | telemetry against the meter per billing interval; `out/meter_check.json` with ratios only; calibration rule |
 | `known_events.example.csv` | its format, with month-level placeholder dates (used when the real file is missing) |
 

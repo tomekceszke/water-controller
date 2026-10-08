@@ -249,6 +249,8 @@ tools/dev_proxy.py --mock --port 8765        # no device: anonymised fixtures in
   use is flat since mid-2023 (the "10 %/year growth" was lost data); 2026 intervals confirm 410 pulses/L.
   `features.clean_flows` scales legacy volumes to the meter per interval (smoothed over 3). Re-run `invoices.py` +
   `meter.py` with new invoices; after 36 m³ of firmware 3.x intervals it recommends a factor if it is off by > 3 %.
+  Then `invoices.py --sql | ssh … psql -d meters`: the readings go to hc-data `meters.reading` with
+  `device = source = 'billing'`, like the gas billing history (idempotent; imported up to 2026-09-24 on 2026-10-08).
 - [~] Stage 7 anomaly model: offline part done (hourly forecast, thresholds, synthetic-leak evaluation). Online part
   (owner decisions 2026-09-29: device + server, **notify only**, retained MQTT config, four UI pieces) written:
   home-idf v0.1.14 `hi_mqtt_subscribe`, firmware 3.4.0 (`learned.c`, `/api/learned`, app), hc-data `wc-model-score`

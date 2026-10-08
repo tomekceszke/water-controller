@@ -2,11 +2,16 @@
 """Main water meter readings from the utility's invoices (PDF), for checking the telemetry against the meter.
 
   uv run --with pypdf server/model/invoices.py ~/path/to/invoices
+  uv run server/model/invoices.py --sql | ssh root@192.168.11.16 "su postgres -c 'psql -d meters -v ON_ERROR_STOP=1'"
 
 Writes server/model/meter_readings.csv (gitignored): start date, reading, end date, reading, in m³. Invoices are
 private documents: only these reading rows are kept. No amounts, names, addresses, account or meter numbers are
 read into the output, and sub-meter rows are skipped (the sub-meter sits behind the flow meter and adds nothing).
 The main meter is recognised by the invoice wording (radio reading, "licznik nadrzędny"), not by its number.
+
+--sql prints the readings from meter_readings.csv as idempotent inserts into the hc-data `meters` database, like the
+gas billing history there (meters-controller docs/DATA.md): `reading` rows with device and source `billing`, stamped
+12:00 Europe/Warsaw on the reading date. No meter_device period covers `billing`, so they stay out of the radio views.
 """
 import argparse
 import csv
@@ -50,11 +55,35 @@ def read_dir(path):
     return sorted(rows)
 
 
+def billing_sql(path):
+    """Idempotent inserts of every reading date in the CSV into meters.reading (point water, device billing)."""
+    readings = {}
+    with open(path, newline="") as fh:
+        for r in csv.DictReader(fh):
+            readings[r["start_local"]] = float(r["start_m3"])
+            readings[r["end_local"]] = float(r["end_m3"])
+    lines = ["BEGIN;"]
+    for day, m3 in sorted(readings.items()):
+        if not re.fullmatch(r"\d{4}-\d{2}-\d{2}", day):
+            raise SystemExit(f"bad date in {path}: {day!r}")
+        lines.append("INSERT INTO reading (point, channel, ts, device, value, source) VALUES ('water', 'total', "
+                     f"('{day} 12:00'::timestamp AT TIME ZONE 'Europe/Warsaw'), 'billing', {m3!r}, 'billing') "
+                     "ON CONFLICT DO NOTHING;")
+    lines.append("COMMIT;")
+    return "\n".join(lines)
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    ap.add_argument("dir", help="directory with the invoice PDFs")
+    ap.add_argument("dir", nargs="?", help="directory with the invoice PDFs")
     ap.add_argument("--out", type=pathlib.Path, default=OUT)
+    ap.add_argument("--sql", action="store_true", help="print the readings in --out as inserts for hc-data meters")
     args = ap.parse_args()
+    if args.sql:
+        print(billing_sql(args.out))
+        return
+    if not args.dir:
+        ap.error("dir is required unless --sql")
     rows = read_dir(args.dir)
     with open(args.out, "w", newline="") as fh:
         w = csv.writer(fh)
