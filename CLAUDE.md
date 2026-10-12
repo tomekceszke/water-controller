@@ -233,6 +233,10 @@ tools/dev_proxy.py --mock --port 8765        # no device: anonymised fixtures in
   - `PULSES_PER_LITER_DEFAULT` in `config.h` is now 410; it only reaches the device with the next OTA release.
 - [x] **3.2.0 on production** (2026-09-16 17:19): shared app shell from home-idf 0.1.8 (tabs Live/History/Settings,
   slide to shut off and to turn on) plus the 410 pulses/L default.
+- [ ] **Flow meter 5.9 % below the radio-read house meter** (2026-10-13, `docs/CALIBRATION.md`): ~2.5 % calibration
+  (~400 pulses/L) plus ~0.7 L/h of trickle the turbine never sees, which the leak rules cannot catch either. Owner:
+  look for the trickle first (meter indicator with no water in use, cistern dye test), then recalibrate. Remind the
+  owner; recheck *Kontrola wody* on the hc-viz *Dom* dashboard after a week (~2026-10-20).
 - [ ] **UI polish** (owner wants another round), noted so far:
   - a dripping-leak rule event shows "0 L, 0 L/min" (firmware sends the current flow, which is zero between drips);
   - regenerate README screenshots after UI changes (`docs/img/app-*.png`, 390×844 at 2x, rendered with mocked API data in headless Chrome).

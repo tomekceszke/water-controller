@@ -102,3 +102,29 @@ flow meter and is ignored.
 
 With new invoices: `uv run --with pypdf server/model/invoices.py <dir>`, then `server/model/meter.py`.
 
+## Checked against the radio-read house meter (2026-10-13)
+
+Since 2026-10-07 meters-controller reads the house meter itself over radio (FLOWIS+ add-on, 1 L resolution, frames
+every ~15 s on weekdays ~08:04-17:00, silent in the evenings and at weekends) into hc-data, database `meters`. That
+gives a reference with far finer time resolution than the invoices. Compared over 2026-10-07 10:32 – 10-12 16:57,
+exactly between two radio frames (no interpolation), with `flow_event` of the production board:
+
+- **The flow meter counts 5.9 % less than the house meter.** The same in the daytime intervals between frames and
+  across the night and weekend gaps, so it is a property of the meter, not of a time of day.
+- Fitting house meter = a × flow meter + b × hours over the intervals between consecutive radio frames:
+  - **a ≈ 1.025**: at normal draw the flow meter under-reads by ~2.5 %, i.e. the effective factor is ~400 pulses/L,
+    not 410. Consistent with the 2026-09-16 curve (408 at 9.8 L/min, less at lower flow).
+  - **b ≈ 0.7 L/h (~17 L/day) that the flow meter does not see at all.** In intervals where the flow meter counted
+    < 0.5 L the house meter advanced twice as much, and 15 intervals had +1 L on the house meter with no flow event.
+    That is a continuous trickle below the turbine's starting flow: a leaking cistern valve, a dripping tap, or an
+    appliance that draws slowly. **The micro-leak and dripping-leak rules cannot catch it**: they work on pulses, and
+    a flow below the starting flow makes none.
+- Next steps, in this order:
+  1. Look for the trickle: with no water in use, watch the house meter's flow indicator for 10-15 min; dye test the
+     cisterns.
+  2. Only then recalibrate: if the trickle goes away and ~2.5 % remains, set `pulses_per_liter` ~400 (confirm with a
+     constant-rate run per the procedure above).
+  3. Keep watching *Kontrola wody* on the hc-viz *Dom* dashboard: flow meter vs house meter over the last 7 days,
+     between the first and last radio frame. The 5.9 % should shrink once the trickle is fixed.
+- 4 days of data and 1 L resolution: the split between a and b is indicative, the total is solid.
+
