@@ -26,7 +26,7 @@ The house water meter sits directly upstream of the valve and the flow meter, so
 through both. That makes it the reference: no bucket, no isolating taps, and runs can be large enough for the reading
 error to stop mattering.
 
-Reference meter here: Metering Flowis+ / ETW-MES-ECO, no. 22097104, Q3 4.0, R160-H, smallest roll 1 L.
+Reference meter here: Metering Flowis+ / ETW-MES-ECO, no. `<METER_ID>`, Q3 4.0, R160-H, smallest roll 1 L.
 
 1. With no water running, note the house meter reading and the device pulse counter:
    ```sh
@@ -52,7 +52,7 @@ Rules that matter:
 - Cold water only: no reason to add the boiler to the measurement.
 - Other water use during a run does not spoil it — it passes through both meters — but it does blur the rate.
 
-## Results (2026-09-16, production board, house meter 623.746 -> 624.001 m³)
+## Results (2026-09-16, production board, 255 L on the house meter over the three runs)
 
 | Run | Volume [L] | Time [s] | Rate [L/min] | Pulses | Pulses/L |
 |---|---|---|---|---|---|
