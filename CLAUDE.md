@@ -235,7 +235,7 @@ tools/dev_proxy.py --mock --port 8765        # no device: anonymised fixtures in
   slide to shut off and to turn on) plus the 410 pulses/L default.
 - [ ] **Flow meter recalibrated to 386 pulses/L** (2026-10-13, `docs/CALIBRATION.md`): it read 6.0 % below the
   radio-read house meter. No trickle (owner's register check + radio data: the extra water comes at the tail of draws).
-  - Owner sets 386 in the app (Settings, Flow meter); `PULSES_PER_LITER_DEFAULT` is 386 from the next OTA.
+  - Set to 386 in the app on 2026-10-13 (confirmed in `/admin/status`); `PULSES_PER_LITER_DEFAULT` is 386 from the next OTA.
   - Firmware 3.x flows in hc-data before the change are at 410 (~6 % low): rescale them (pulses / 386) at the next
     model retrain, or the learned volume limits stay ~6 % tight.
   - Recheck *Kontrola wody* on the hc-viz *Dom* dashboard after a week (~2026-10-20): it should sit near 0 %.
