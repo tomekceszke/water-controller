@@ -116,15 +116,37 @@ exactly between two radio frames (no interpolation), with `flow_event` of the pr
     not 410. Consistent with the 2026-09-16 curve (408 at 9.8 L/min, less at lower flow).
   - **b ≈ 0.7 L/h (~17 L/day) that the flow meter does not see at all.** In intervals where the flow meter counted
     < 0.5 L the house meter advanced twice as much, and 15 intervals had +1 L on the house meter with no flow event.
-    That is a continuous trickle below the turbine's starting flow: a leaking cistern valve, a dripping tap, or an
-    appliance that draws slowly. **The micro-leak and dripping-leak rules cannot catch it**: they work on pulses, and
-    a flow below the starting flow makes none.
-- Next steps, in this order:
-  1. Look for the trickle: with no water in use, watch the house meter's flow indicator for 10-15 min; dye test the
-     cisterns.
-  2. Only then recalibrate: if the trickle goes away and ~2.5 % remains, set `pulses_per_liter` ~400 (confirm with a
-     constant-rate run per the procedure above).
-  3. Keep watching *Kontrola wody* on the hc-viz *Dom* dashboard: flow meter vs house meter over the last 7 days,
-     between the first and last radio frame. The 5.9 % should shrink once the trickle is fixed.
+    It looked like a continuous trickle below the turbine's starting flow; **it is not one**, see the next section.
 - 4 days of data and 1 L resolution: the split between a and b is indicative, the total is solid.
 
+## No trickle; recalibrated to 386 (2026-10-13)
+
+The trickle the fit above suggested is not there:
+
+- **Owner's check**: with no water in use, the hundredths of the house meter register did not move for about an hour
+  (the flow indicator is covered by the radio add-on, so only the register can be read). On its own that is too coarse
+  to rule out 0.7 L/h (10 L per hundredth), but the radio data settles it.
+- **Radio data**: 26 windows inside the radio hours with no flow event, 17 h between their first and last frame. A
+  0.7 L/h trickle would add ~12 L spread evenly over them. The house meter advanced 7 L, each time +1 L a few minutes
+  after a draw (or just before the next one), and otherwise stood still for an hour and more (e.g. 2026-10-07
+  12:22-13:27, 13:28-14:36): water at the very end of a draw, e.g. a fill valve closing slowly, below the turbine's
+  starting flow.
+  That water belongs to the draws, so it is part of what a per-liter factor has to cover.
+- A frame gap fakes a trickle: on 2026-10-13 a 6 L draw at 09:45 reached the radio data only at 10:00. Compare a
+  window from the first frame *after* the preceding flow.
+
+Over the whole radio span, 2026-10-07 10:32 to 10-13 11:15, flows wholly between two frames, none straddling:
+**2491 L on the house meter, 960 438 pulses = 385.6 pulses/L** (at 410 the device reported 2342 L, 6.0 % low).
+
+**`pulses_per_liter` set to 386** (Settings, Flow meter; `PULSES_PER_LITER_DEFAULT` follows with the next OTA).
+Totals now match the house meter over the real mix of draws. A single factor cannot follow the turbine's curve:
+long constant draws at ~10 L/min (408 on 2026-09-16) now read ~5 % high, slow ones and draw tails are what they were
+missing. High is the safe direction for the volume rules.
+
+Consequences:
+- Tier 0 and Tier 1 measure time: unaffected.
+- Tier 2 volume thresholds and Tier 3 learned volume limits act ~6 % earlier for the same water.
+- hc-data keeps `pulses_per_liter` per event: flows before the change stay at 410 in `flow.liters`, so the learned
+  volume limits are trained on liters ~6 % lower than the device now reports. Rescale old flows (pulses / 386) when the
+  model is retrained, or let new data take over.
+- Recheck *Kontrola wody* on the hc-viz *Dom* dashboard after a week: it should sit near 0 %.

@@ -33,7 +33,7 @@ The utility's main meter readings (42 consecutive billing intervals, 2023-03 to 
 
 - **The legacy counter-wrap bug began in July 2023** (first `suspect` flow 2023-07-03): before it, raw and corrected pulses are the same (0.94 of the meter, the telemetry's usual loss); after it, raw pulses run at 1.4-1.7x the meter. Legacy volumes up to mid-2023 are not affected by the bug.
 - **Legacy telemetry lost water**: with the full wrap fix it counted the pre-bug share again in 2023 and a clear deficit in 2024. The import-only correction lands near 1.00 overall only because residual wraps offset the lost flows.
-- **The calibration holds**: the 2026 intervals imply 410 pulses per liter against the 410 in use.
+- **The calibration holds**: the 2026 intervals imply 410 pulses per liter against the 410 in use (to their ±8 %; the radio-read house meter later put it at 386, docs/CALIBRATION.md).
 - **Use is flat**: the meter shows no growth since mid-2023, so the apparent growth of about 10 % a year in the telemetry was lost data, not the household.
 - **Reconciliation**: legacy flow volumes in each billing interval (until 2026-09-15) are scaled by meter / telemetry over that interval and its two neighbours (factor 0.97-1.23, mean 1.08); durations and counts are untouched, firmware 3.x is used as measured. Per interval the ratio scatters by 8 %, about what 1 m³ in 12 m³ allows.
 - **Ongoing calibration check**: once firmware 3.x has 36 m³ of complete meter intervals (about ±3 %), `meter.py` recommends a new pulses-per-liter value if the implied one differs by more than 3 % (not enough firmware 3.x intervals yet).

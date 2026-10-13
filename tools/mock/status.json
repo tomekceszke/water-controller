@@ -47,7 +47,7 @@
   "tier1_limit_s": 1800,
   "tier1_limit_min_s": 60,
   "tier1_limit_max_s": 2700,
-  "pulses_per_liter": 410,
+  "pulses_per_liter": 386,
   "max_event_liters": 0,
   "burst_lpm": 40,
   "burst_s": 0,

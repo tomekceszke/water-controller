@@ -28,7 +28,7 @@ rebuilds it around one rule: **the shut-off must work even when everything else 
 
 ## What it does
 
-- **Measures every flow**: liters, duration, rate (Hall-effect meter, 410 pulses per liter, measured against the house water meter).
+- **Measures every flow**: liters, duration, rate (Hall-effect meter, 386 pulses per liter, measured against the house water meter).
 - **Shuts the water off** after continuous flow longer than a limit set in the app. This works with no Wi-Fi, no server and no clock.
 - **Smart rules**:
   - too much water in one go;
@@ -147,7 +147,7 @@ previous cloud setup (269 518 flows since June 2020) was imported with a correct
 </picture>
 
 The history is checked against the water utility's own meter readings (billing intervals since 2023): they
-confirm the 410 pulses per liter, date the old firmware's counter bug to July 2023, and show that the old telemetry
+agree with the calibration within their 1 m³ resolution, date the old firmware's counter bug to July 2023, and show that the old telemetry
 lost part of the water, so its volumes are reconciled to the meter before any model sees them.
 
 The quiet nights make the anomaly idea concrete: water running at 3 am is rarely legitimate. A model trained on this

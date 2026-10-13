@@ -31,7 +31,7 @@
 #define VALVE_CLOSING_S                 15      // flow after a close for longer than this = valve failure alert
 
 /* CALIBRATION */
-#define PULSES_PER_LITER_DEFAULT        410     // measured 2026-09-16 against the house meter: see docs/CALIBRATION.md
+#define PULSES_PER_LITER_DEFAULT        386     // house meter over radio, 2026-10-07..13: see docs/CALIBRATION.md
 #define PULSES_PER_LITER_MIN            300
 #define PULSES_PER_LITER_MAX            700
 
