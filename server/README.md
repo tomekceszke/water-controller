@@ -1,6 +1,6 @@
 # hc-data: water-controller backend
 
-Telemetry storage on the Proxmox LXC `hc-data` (192.168.11.16, Debian 13), next to heating-controller.
+Telemetry storage on the Proxmox LXC `hc-data` (192.168.11.16, Debian 13), next to sensors-controller (formerly heating-controller).
 The device publishes to Mosquitto; `wc-ingest` stores the messages in PostgreSQL database `water`.
 **Nothing here is needed for protection**: if hc-data is down, the controller keeps cutting off water and the
 esp-mqtt outbox (bounded, 1 h) loses what does not fit.
@@ -14,12 +14,12 @@ ESP32 <--retained water/<mac>/config (learned limits)-- Mosquitto <-- publish.py
 
 ## Shared broker
 
-- heating-controller and water-controller use the same Mosquitto instance.
+- Every controller uses the same Mosquitto instance.
 - Mosquitto supports one `password_file` and one `acl_file`, so both `install.sh` scripts write per-project
   fragments (`/etc/mosquitto/passwd.d/<project>`, `/etc/mosquitto/acl.d/<project>.acl`) and concatenate them.
 - On the first run on a heating-only broker, the water installer turns the existing files into heating's fragments.
 - Water provisioning only **reloads** Mosquitto and PostgreSQL. Heating devices stay connected.
-- heating-controller `server/install.sh` must use the same fragment scheme. Otherwise its next deploy removes the water users.
+- sensors-controller `server/install.sh` must use the same fragment scheme. Otherwise its next deploy removes the water users.
 
 | MQTT user | Access |
 |---|---|

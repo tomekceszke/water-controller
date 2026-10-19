@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# Idempotent provisioning of the water-controller part of hc-data (Debian 13), next to heating-controller.
+# Idempotent provisioning of the water-controller part of hc-data (Debian 13), next to sensors-controller.
 # Run as root from /opt/wc-server (deploy.sh does this). Never restarts shared services: Mosquitto and
-# PostgreSQL are only reloaded, so heating-controller devices and ingest keep running.
+# PostgreSQL are only reloaded, so the other controllers' devices and ingest keep running.
 set -euo pipefail
 cd "$(dirname "$0")"
 
@@ -20,11 +20,12 @@ echo "== mosquitto (passwd/acl assembled from per-project fragments)"
 [ -d /root/mosquitto-pre-fragments ] || { install -d -m 700 /root/mosquitto-pre-fragments &&
     cp -a /etc/mosquitto/passwd /etc/mosquitto/acl /root/mosquitto-pre-fragments/ 2>/dev/null || true; }
 install -d -m 750 -o root -g mosquitto /etc/mosquitto/passwd.d /etc/mosquitto/acl.d
-# First run on a heating-only broker: keep heating's users and ACL as its own fragments
-if [ ! -f /etc/mosquitto/acl.d/heating.acl ] && [ -f /etc/mosquitto/acl ]; then
-    install -m 640 -o root -g mosquitto /etc/mosquitto/acl /etc/mosquitto/acl.d/heating.acl
-    grep -E '^(heating-controller|hc-ingest):' /etc/mosquitto/passwd > /etc/mosquitto/passwd.d/heating || true
-    chown root:mosquitto /etc/mosquitto/passwd.d/heating && chmod 640 /etc/mosquitto/passwd.d/heating
+# First run on a broker that only sensors-controller (formerly heating-controller) set up: keep its users and ACL as
+# its own fragments
+if [ ! -f /etc/mosquitto/acl.d/sensors.acl ] && [ ! -f /etc/mosquitto/acl.d/heating.acl ] && [ -f /etc/mosquitto/acl ]; then
+    install -m 640 -o root -g mosquitto /etc/mosquitto/acl /etc/mosquitto/acl.d/sensors.acl
+    grep -E '^(sensors-controller|sc-ingest):' /etc/mosquitto/passwd > /etc/mosquitto/passwd.d/sensors || true
+    chown root:mosquitto /etc/mosquitto/passwd.d/sensors && chmod 640 /etc/mosquitto/passwd.d/sensors
 fi
 install -m 640 -o root -g mosquitto mosquitto/water.acl /etc/mosquitto/acl.d/water.acl
 PASSWD_TMP=$(mktemp)
@@ -88,4 +89,4 @@ systemctl restart wc-ingest
 echo "== status"
 systemctl is-active mosquitto postgresql wc-ingest wc-pg-backup.timer
 systemctl is-active wc-model-score.timer || echo "(hourly model check waits for server/model/publish.py)"
-systemctl is-active hc-ingest 2>/dev/null && echo "(heating ingest still running)" || true
+systemctl is-active sc-ingest 2>/dev/null && echo "(sensors ingest still running)" || true

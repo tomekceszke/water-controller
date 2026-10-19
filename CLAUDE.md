@@ -184,7 +184,7 @@ tools/dev_proxy.py --mock --port 8765        # no device: anonymised fixtures in
 
 - **OTA server**: `https://192.168.11.15:8070` (`~/apps/ota-server` on .15, started on demand).
 - **UDP logs**: `192.168.11.15:1338` (`nc -ul 1338`).
-- **hc-data**: `192.168.11.16`, Mosquitto + PostgreSQL shared with `../heating-controller`.
+- **hc-data**: `192.168.11.16`, Mosquitto + PostgreSQL shared with `../sensors-controller` (formerly heating-controller) and the others.
   - Water part: `server/` (DB `water`, `wc-ingest`, backups); see `server/README.md`.
   - Mosquitto passwd/acl are assembled from `/etc/mosquitto/{passwd.d,acl.d}` fragments by both projects' `install.sh`.
 - **GCP** (history): the legacy firmware posted to Cloud Functions + BigQuery in project `water-controller-351109`;
@@ -193,7 +193,7 @@ tools/dev_proxy.py --mock --port 8765        # no device: anonymised fixtures in
 ## Sibling projects
 
 - `../gate-controller`: ESP-IDF 5.4.2 reference (auth, API guards, PWA, health/rollback, OTA migrator).
-- `../heating-controller`: MQTT telemetry and hc-data server; it migrated off GCP on 2026-09-11.
+- `../sensors-controller` (formerly heating-controller): MQTT telemetry and hc-data server; it migrated off GCP on 2026-09-11.
 - `../floor-heating-controller`: ntfy notifications, CI workflow.
 
 ## Rules
@@ -214,9 +214,8 @@ tools/dev_proxy.py --mock --port 8765        # no device: anonymised fixtures in
 ## TODO
 
 - [x] Production migration to 3.1.0 (2026-09-15).
-- [ ] Off-host backups of hc-data dumps (`/var/backups/water`, `/var/backups/heating` live only on the CT disk): choose a location.
-- [ ] Data visualisation for hc-data (shared with heating-controller): Grafana (probably) with a PostgreSQL data source on
-  `wc_read` / `hc_read`, dashboards for water flow, events and alerts next to the heating ones. Decide where it runs first.
+- [ ] Off-host backups of hc-data dumps (`/var/backups/water`, `/var/backups/sensors` live only on the CT disk): choose a location.
+- [x] Data visualisation for hc-data: `../hc-viz/` (Grafana on hc-data :3000 since 2026-10-07).
 - [x] **Valve shut-off test on production** (2026-09-16 11:14, passed).
   - Run with the water already flowing, then closed from the app: flow stopped **6 s** after the command (actuator
     travel < 10 s), ~0.4 L passed after it. `flow_event` 11:14:28-11:14:46, 353 pulses, `closed=true`, no `alert_event`.
