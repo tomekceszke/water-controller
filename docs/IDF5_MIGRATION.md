@@ -56,8 +56,8 @@ source ~/.espressif/tools/activate_idf_v5.1.1.sh && idf.py build && idf.py -p /d
 tools/build_release.sh --spare               # -> releases/spare/
 
 # 3. Serve the migrator, trigger the legacy OTA, watch the UDP log
-scp releases/water-migrator.bin 192.168.11.15:apps/ota-server/builds/water-controller-spare.bin
-ssh 192.168.11.15 'cd apps/ota-server && python3 ota_server.py'
+scp releases/water-migrator.bin {ota-host}:apps/ota-server/builds/water-controller-spare.bin
+ssh {ota-host} 'cd apps/ota-server && python3 ota_server.py'
 curl -X POST -H 'Authorization: <legacy value>' --data 1 http://<spare-ip>/su
 nc -ul 1338
 
@@ -101,11 +101,11 @@ gate migration), migration from a legacy image that runs from ota_0 (the migrato
 
 1. `tools/build_release.sh` (production file name) with the owner's credentials; record the sha256 of both images.
 2. `server/migrate/bq_export.py` + `import.sh` (history up to the cutover).
-3. `scp releases/water-migrator.bin 192.168.11.15:apps/ota-server/builds/water-controller.bin`, then start
-   `ota_server.py` on .15.
+3. `scp releases/water-migrator.bin {ota-host}:apps/ota-server/builds/water-controller.bin`, then start
+   `ota_server.py` on {ota-host}.
 4. Legacy: `POST /su` with the legacy Authorization header (or wait for a legacy reboot).
-5. `GET http://192.168.11.244/migrator` until `ready` with all checks ok.
-6. `scp releases/water-controller.bin 192.168.11.15:apps/ota-server/builds/water-controller.bin` **before** the commit.
+5. `GET http://{wc-ip}/migrator` until `ready` with all checks ok.
+6. `scp releases/water-controller.bin {ota-host}:apps/ota-server/builds/water-controller.bin` **before** the commit.
 7. `POST /migrator/commit` with the admin header. The firmware follows within a minute.
 8. Verify:
    - `/admin/hw-status` shows 3.x;
@@ -134,7 +134,7 @@ Verified after the migration:
 - MQTT connected; hc-data `device_status` has `30aea40aba44 online` at 23:02:51.
 - Sign-in page `w-controller` served without a session.
 - Ping 3-6 ms, avg 4.5 ms (legacy: 53-84 ms).
-- OTA server on .15 stopped.
+- OTA server on {ota-host} stopped.
 
 Still to do: a real flow event in hc-data (the next time water is used), the bucket calibration, and switching off the
 GCP Cloud Function after two weeks (not before 2026-09-29).

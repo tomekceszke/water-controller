@@ -1,5 +1,7 @@
 # water-controller
 
+LAN addresses appear as placeholders such as `{ota-host}`; their values are in `CLAUDE.local.md` (not in git).
+
 Home anti-flood system: an ESP32 counts pulses from a flow meter on the main water inlet and closes a motorised valve
 when water flows for too long. In production since 2020; it has already stopped several leaks (garden hoses left open or
 bursting in the heat). **The cutoff is the product. Everything else (UI, telemetry, notifications, anomaly detection) is
@@ -55,7 +57,7 @@ The plan is in `~/.claude/plans/cele-odnosnie-tego-projektu-rosy-moler.md`. Stag
 | Item | Value |
 |---|---|
 | Board | ESP32-WROOM-32 DevKit on a prototype board, 4 MB flash, sealed enclosure (hard to reach: **OTA only**) |
-| Production | `192.168.11.244`, MAC `30:AE:A4:0A:BA:44` |
+| Production | `{wc-ip}`, MAC `{wc-mac}` |
 | Spare | identical board with USB for development and destructive tests |
 | Flow meter | Termipol PM-3/4-B DN20, open collector, spec 477 pulses/L ±10 % (calibration: `docs/CALIBRATION.md`) |
 | Valve | motorised DN20 ball valve, single control line (wiring checks: `docs/HARDWARE.md`) |
@@ -96,7 +98,7 @@ cmake -S firmware/test -B build-test && cmake --build build-test && ctest --test
      - `NTFY_TOPIC` (quiet): water on, a shut-off by the owner, start.
    - Secrets are stored obfuscated (`home-idf/tools/obfuscate.py` → `"obf1:..."`, `--reveal` to read back); that is
      not encryption. Scripts that need a value (e.g. the admin header for `tools/hw_test.py`) reveal it the same way.
-2. `firmware/certs/ota_server_cert_15.pem` (gitignored): trust anchor of the OTA server on 192.168.11.15.
+2. `firmware/certs/ota_server_cert_15.pem` (gitignored): trust anchor of the OTA server on {ota-host}.
 
 ### Layout
 
@@ -146,7 +148,7 @@ Mutation = session cookie + JSON + `X-CSRF-Token` + Origin equal to Host.
 
 ### MQTT (hc-data)
 
-The broker is `mqtt://192.168.11.16:1883`, user `water-controller`, QoS 1. Topics:
+The broker is `mqtt://{hc-data}:1883`, user `water-controller`, QoS 1. Topics:
 
 | Topic | Payload |
 |---|---|
@@ -176,15 +178,15 @@ tools/dev_proxy.py --mock --port 8765        # no device: anonymised fixtures in
 ## Legacy firmware (production until migration)
 
 - Legacy HTTP API on :80: `GET /api/status`, `GET /is-valve-closed`, `GET /hw-status`, `POST /close-valve` (body
-  `1`/`0`, header auth), `POST /su` (OTA from `https://192.168.11.15:8070/water-controller.bin`), `POST /reboot`.
+  `1`/`0`, header auth), `POST /su` (OTA from `https://{ota-host}:8070/water-controller.bin`), `POST /reboot`.
 - `GET /test-send-metrics` sends a fake row to BigQuery: **never call it**.
-- The legacy UDP log also goes to `192.168.11.15:1338`.
+- The legacy UDP log also goes to `{ota-host}:1338`.
 
 ## Infrastructure
 
-- **OTA server**: `https://192.168.11.15:8070` (`~/apps/ota-server` on .15, started on demand).
-- **UDP logs**: `192.168.11.15:1338` (`nc -ul 1338`).
-- **hc-data**: `192.168.11.16`, Mosquitto + PostgreSQL shared with `../sensors-controller` (formerly heating-controller) and the others.
+- **OTA server**: `https://{ota-host}:8070` (`~/apps/ota-server` on {ota-host}, started on demand).
+- **UDP logs**: `{ota-host}:1338` (`nc -ul 1338`).
+- **hc-data**: `{hc-data}`, Mosquitto + PostgreSQL shared with `../sensors-controller` (formerly heating-controller) and the others.
   - Water part: `server/` (DB `water`, `wc-ingest`, backups); see `server/README.md`.
   - Mosquitto passwd/acl are assembled from `/etc/mosquitto/{passwd.d,acl.d}` fragments by both projects' `install.sh`.
 - **GCP** (history): the legacy firmware posted to Cloud Functions + BigQuery in project `water-controller-351109`;

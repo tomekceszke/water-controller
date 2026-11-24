@@ -1,6 +1,6 @@
 # hc-data: water-controller backend
 
-Telemetry storage on the Proxmox LXC `hc-data` (192.168.11.16, Debian 13), next to sensors-controller (formerly heating-controller).
+Telemetry storage on the Proxmox LXC `hc-data` ({hc-data}, Debian 13), next to sensors-controller (formerly heating-controller).
 The device publishes to Mosquitto; `wc-ingest` stores the messages in PostgreSQL database `water`.
 **Nothing here is needed for protection**: if hc-data is down, the controller keeps cutting off water and the
 esp-mqtt outbox (bounded, 1 h) loses what does not fit.
@@ -48,7 +48,7 @@ Views (Europe/Warsaw local time):
 
 Roles:
 - `wc_ingest`: peer auth, insert.
-- `wc_read`: password, SELECT from 192.168.11.0/24 (DataGrip, Grafana, model training on a workstation).
+- `wc_read`: password, SELECT from {lan-subnet} (DataGrip, Grafana, model training on a workstation).
 - `wc_model`: peer auth, SELECT, INSERT on `model_alert` (hourly check).
 
 ## History from GCP
@@ -94,8 +94,8 @@ $R server/model/publish.py               # retained config + thresholds.json to 
 ```sh
 cp server/secrets.env.example server/secrets.env   # fill; MQTT_DEVICE_PASS = MQTT_PASS in credentials.h
 server/deploy.sh                                   # copy to /opt/wc-server + idempotent install.sh
-ssh root@192.168.11.16 journalctl -u wc-ingest -f
-ssh root@192.168.11.16 'runuser -u postgres -- psql water'
+ssh root@{hc-data} journalctl -u wc-ingest -f
+ssh root@{hc-data} 'runuser -u postgres -- psql water'
 uv run --with paho-mqtt python -m unittest server/ingest/test_wc_ingest.py
 ```
 

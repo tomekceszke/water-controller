@@ -7,14 +7,14 @@ Snapshot of the production firmware before the ESP-IDF 5.4.2 refresh (commit `fc
 | Item | Value |
 |---|---|
 | Board | ESP32-WROOM-32 DevKit (ESP32-D0WD), 4 MB flash, soldered onto a 7x9 cm prototype board, sealed enclosure |
-| IP / MAC | `192.168.11.244` / `30:AE:A4:0A:BA:44` |
+| IP / MAC | `{wc-ip}` / `{wc-mac}` |
 | Uptime at inventory | since 2026-09-11 23:07 |
 | ESP-IDF | v5.1.1 (`sdkconfig` header), app `water-controller.bin` ~957 KB (last local build 2023-07-21) |
 | Flow meter | Termipol PM-3/4-B (DN20, 2-45 L/min, open-collector output, spec 477 pulses/L ±10 %) on GPIO4 |
 | Valve | Motorised DN20 ball valve, control on GPIO14 (HIGH = open) |
 | LEDs | blue GPIO32 (water flowing), red GPIO33 (valve closed) |
-| Logging | vendored MalteJ udp_logging → `192.168.11.15:1338` |
-| OTA | `https://192.168.11.15:8070/water-controller.bin` at boot and via `POST /su`; bin deleted after success |
+| Logging | vendored MalteJ udp_logging → `{ota-host}:1338` |
+| OTA | `https://{ota-host}:8070/water-controller.bin` at boot and via `POST /su`; bin deleted after success |
 | Cloud | JWT (RS256, service account key embedded) → Google ID token → Cloud Function `send-metrics` → BigQuery `water-controller-351109.flow_ds.flow_raw`; older history in `vps1-ceszke-com.water_flow_ds.water_flow` |
 
 ### Flash layout (`partitions_two_ota.csv`, default IDF table)

@@ -32,7 +32,7 @@ Reference meter here: Metering Flowis+ / ETW-MES-ECO, no. `<METER_ID>`, Q3 4.0, 
    ```sh
    ADMIN=$(python3 ~/dev/home-controllers/home-idf/tools/obfuscate.py --reveal \
      "$(grep '^#define HEADER_AUTHORIZATION_VALUE' firmware/main/config/credentials.h | cut -d'"' -f2)")
-   curl -s -H "Authorization: $ADMIN" http://192.168.11.244/admin/status \
+   curl -s -H "Authorization: $ADMIN" http://{wc-ip}/admin/status \
      | jq '{counter:.flow.counter, flowing:.flow.flowing, uptime:.system.uptime_s}'
    ```
    `flow.counter` is pulses since boot, accumulated, and does not wrap. It is independent of the configured

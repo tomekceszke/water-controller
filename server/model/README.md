@@ -6,12 +6,12 @@ for protection.
 
 ## Run
 
-Needs `PG_READ_PASS` in `server/secrets.env` (role `wc_read`, SELECT only) and access to 192.168.11.16.
+Needs `PG_READ_PASS` in `server/secrets.env` (role `wc_read`, SELECT only) and access to {hc-data}.
 
 ```sh
 R="uv run --with-requirements server/model/requirements.txt"
 uv run --with pypdf server/model/invoices.py <invoice dir>   # private meter readings (optional, gitignored)
-uv run server/model/invoices.py --sql | ssh root@192.168.11.16 "su postgres -c 'psql -d meters -v ON_ERROR_STOP=1'"   # them into hc-data
+uv run server/model/invoices.py --sql | ssh root@{hc-data} "su postgres -c 'psql -d meters -v ON_ERROR_STOP=1'"   # them into hc-data
 $R server/model/data.py --refresh   # flows -> server/model/data/flows.parquet (cache, gitignored)
 $R server/model/meter.py            # telemetry vs meter; legacy volumes are reconciled when readings exist
 $R server/model/train.py            # hourly models: selection, test, final fit     (~1.5 min)
